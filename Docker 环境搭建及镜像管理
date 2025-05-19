@@ -1,0 +1,168 @@
+CentOS 最后一个版本 8.5
+
+之前：RHEL 8.4 发布了，CentOS紧随其后，发布CentOS 8.4
+之后：CentOS 走在前面，成为RHEL上游，再去发布RHEL
+
+CentOS stream 8/9
+
+# 1 安装配置操作系统
+
+制作模板
+1.编辑网卡
+[root@temp network-scripts]# vi ifcfg-ens160
+[root@temp network-scripts]# cat ifcfg-ens160
+TYPE=Ethernet
+BOOTPROTO=dhcp
+NAME=ens160
+DEVICE=ens160
+ONBOOT=yes
+
+2.清除密钥文件
+[root@temp ~]# cd /etc/ssh/
+[root@temp ssh]# ls
+moduli      ssh_config.d  ssh_host_ecdsa_key      ssh_host_ed25519_key      ssh_host_rsa_key
+ssh_config  sshd_config   ssh_host_ecdsa_key.pub  ssh_host_ed25519_key.pub  ssh_host_rsa_key.pub
+[root@temp ssh]# rm -rf ssh_host_*
+[root@temp ssh]# ls
+moduli  ssh_config  ssh_config.d  sshd_config
+
+3.清除machine-id
+清除，不是删除
+[root@temp ssh]# cat /etc/machine-id 
+5f9da25a629841b8bdba92d307182c0d
+
+[root@temp ssh]# cat /dev/null > /etc/machine-id 
+[root@temp ssh]# cat /etc/machine-id 
+
+4.关机
+init 0
+
+5.完整克隆（以后用到的虚拟机，都可以进行完整克隆）
+6.手工配置静态ip
+[root@temp network-scripts]# cat ifcfg-ens160
+TYPE=Ethernet
+BOOTPROTO=none
+NAME=ens160
+DEVICE=ens160
+ONBOOT=yes
+IPADDR=192.168.100.177
+NETMASK=255.255.255.0
+GATEWAY=192.168.100.2
+DNS1=192.168.100.2
+
+[root@temp network-scripts]# nmcli conn down ens160
+[root@temp network-scripts]# nmcli conn up ens160
+
+7.修改主机名
+[root@temp network-scripts]# hostnamectl set-hostname docker
+[root@temp network-scripts]# exit
+logout
+
+--------------------------------------------
+
+# 2 架构和概念
+## 2.1 概念
+
+Docker k8s  kubernetes  k3s
+
+为什么提到 docker 就要提 k8s
+
+Docker 一家公司的名字，产品叫 Docker
+Oracle 一家公司的名字（甲骨文），产品叫 Oracle
+
+容器技术，除了 docker，podman，lxd/lxc，containerd，runc等等
+k8s 容器编排工具。
+
+理解虚拟机和容器之间的区别：
+先理解一点：虚拟机目的是为了隔离用户；容器目的是为了隔离应用（namespace cgroup）。
+
+## 2.1 安装docker
+
+yum install -y vim net-tools bash-completion yum-utils
+bash 或者退出重新登录，为了自动补全
+
+[root@docker yum.repos.d]# yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+Adding repo from: https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+[root@docker yum.repos.d]# ls
+CentOS-Stream-AppStream.repo      CentOS-Stream-Extras.repo            CentOS-Stream-PowerTools.repo        docker-ce.repo
+CentOS-Stream-BaseOS.repo         CentOS-Stream-HighAvailability.repo  CentOS-Stream-RealTime.repo
+CentOS-Stream-Debuginfo.repo      CentOS-Stream-Media.repo             CentOS-Stream-ResilientStorage.repo
+CentOS-Stream-Extras-common.repo  CentOS-Stream-NFV.repo               CentOS-Stream-Sources.repo
+
+查看docker版本
+yum list docker-ce --showduplicates | sort -r
+
+默认安装最新版
+yum install -y docker-ce
+安装指定版本
+yum install -y docker-ce-20.10.22 docker-ce-cli-20.10.22
+
+[root@docker yum.repos.d]# docker -v
+Docker version 23.0.1, build a5ee5b1
+
+开启docker服务
+[root@docker ~]# systemctl status docker.service 
+● docker.service - Docker Application Container Engine
+   Loaded: loaded (/usr/lib/systemd/system/docker.service; disabled; vendor preset: disabled)
+   Active: inactive (dead)
+     Docs: https://docs.docker.com
+[root@docker ~]# 
+[root@docker ~]# systemctl start docker.service 
+[root@docker ~]# systemctl enable docker.service 
+Created symlink /etc/systemd/system/multi-user.target.wants/docker.service → /usr/lib/systemd/system/docker.service.
+
+# 3 镜像管理
+[root@docker ~]# docker help
+
+[root@docker ~]# vim /etc/docker/daemon.json
+[root@docker ~]# cat /etc/docker/daemon.json 
+{
+  "registry-mirrors": ["https://cc2d8woc.mirror.aliyuncs.com"]
+}
+
+[root@docker ~]# systemctl daemon-reload
+[root@docker ~]# systemctl restart docker
+
+标准的完整名称
+      服务器                       仓库/分类 镜像   版本
+registry.cn-hangzhou.aliyuncs.com/cloudcs/centos:latest
+
+版本默认情况下，如果不指定，那么默认为 latest
+
+镜像的下载
+docker pull
+镜像重命名
+docker tag
+镜像的删除
+docker rmi
+镜像历史信息
+docker history
+镜像保存
+docker save mysql alpine > /tmp/all.tar
+镜像导入
+docker load -i /tmp/all.tar
+
+尝尝鲜：
+尝试运行一个容器
+[root@docker ~]# docker run -tid --name d1 --restart always alpine
+8492bacc13e28462846396aa4f27277adf91ccd6c456760fbb766917d698086b
+
+尝试查看容器
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND     CREATED              STATUS              PORTS     NAMES
+9fd6c4e92768   alpine    "/bin/sh"   5 seconds ago        Up 3 seconds                  d4
+6c89856451c1   alpine    "/bin/sh"   About a minute ago   Up About a minute             d3
+26c77f036f19   alpine    "/bin/sh"   About a minute ago   Up About a minute             d2
+8492bacc13e2   alpine    "/bin/sh"   2 minutes ago        Up 2 minutes                  d1
+
+尝试进入容器
+[root@docker ~]# docker exec -ti d1 /bin/sh
+/ # ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+4: eth0@if5: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue state UP 
+    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.2/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
