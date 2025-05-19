@@ -1,0 +1,473 @@
+# 1 自定义镜像
+## 1.1 了解dockerfile
+了解dockerfile如何编写
+
+https://developer.aliyun.com/mirror/centos-vault?spm=a2c6h.13651104.0.0.2705320cAjPIus
+
+~ #CentOS 8 
+RUN minorver=8.4.2105 \
+&& sed -e "s|^mirrorlist=|#mirrorlist=|g" -e "s|^#baseurl=http://mirror.centos.org/\$contentdir/\$releasever|baseurl=https://mirrors.aliyun.com/centos-vault/$minorver|g" -i.bak /etc/yum.repos.d/CentOS-*.repo
+
+[root@docker ~]# vim dockerfile 
+[root@docker ~]# cat dockerfile 
+FROM centos:latest
+MAINTAINER tianlaoshi
+RUN minorver=8.4.2105 \
+&& sed -e "s|^mirrorlist=|#mirrorlist=|g" -e "s|^#baseurl=http://mirror.centos.org/\$contentdir/\$releasever|baseurl=https://mirrors.aliyun.com/centos-vault/$minorver|g" -i.bak /etc/yum.repos.d/CentOS-*.repo
+RUN yum install -y vim net-tools iproute
+
+CMD ["/bin/bash"]
+
+[root@docker ~]# docker build -t centos:v1.0 .
+[+] Building 25.5s (7/7) FINISHED                                                                                                                
+ => [internal] load build definition from dockerfile                                                                                        0.0s
+ => => transferring dockerfile: 374B                                                                                                        0.0s
+ => [internal] load .dockerignore                                                                                                           0.0s
+ => => transferring context: 2B                                                                                                             0.0s
+ => [internal] load metadata for docker.io/library/centos:8.4.2105                                                                          0.0s
+ => CACHED [1/3] FROM docker.io/library/centos:8.4.2105                                                                                     0.0s
+ => [2/3] RUN minorver=8.4.2105 && sed -e "s|^mirrorlist=|#mirrorlist=|g" -e "s|^#baseurl=http://mirror.centos.org/$contentdir/$releasever  0.4s
+ => [3/3] RUN yum install -y vim net-tools iproute                                                                                         24.6s
+ => exporting to image                                                                                                                      0.4s
+ => => exporting layers                                                                                                                     0.4s
+ => => writing image sha256:7f1f2e826bd027615f8f76a3a89567bd2e3efcb265cde9d6a8e05f4babb89555                                                0.0s 
+ => => naming to docker.io/library/centos:v1.0                                                                                              0.0s
+
+ [root@docker ~]# docker rm -f $(docker ps -aq)
+53cdd33163a8
+b2016879d6e3
+[root@docker ~]# docker images
+REPOSITORY   TAG        IMAGE ID       CREATED         SIZE
+centos       v1.0       7f1f2e826bd0   2 minutes ago   307MB
+busybox      latest     beae173ccac6   14 months ago   1.24MB
+nginx        latest     605c77e624dd   14 months ago   141MB
+wordpress    latest     c3c92cc3dcb1   15 months ago   616MB
+mysql        latest     3218b38490ce   15 months ago   516MB
+alpine       latest     c059bfaa849c   16 months ago   5.59MB
+centos       8.4.2105   5d0da3dc9764   18 months ago   231MB
+centos       latest     5d0da3dc9764   18 months ago   231MB
+[root@docker ~]# docker run -tid --name os1 --restart always centos:v1.0 
+7d124cd29df5b5d1308f0ff8050fe74e700e24188b9311c683897169a480784c
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE         COMMAND       CREATED         STATUS         PORTS     NAMES
+7d124cd29df5   centos:v1.0   "/bin/bash"   3 seconds ago   Up 2 seconds             os1
+[root@docker ~]# docker attach os1
+[root@7d124cd29df5 /]# vim abc
+[root@7d124cd29df5 /]# ifconfig
+eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 172.17.0.2  netmask 255.255.0.0  broadcast 172.17.255.255
+        ether 02:42:ac:11:00:02  txqueuelen 0  (Ethernet)
+        RX packets 10  bytes 876 (876.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+[root@7d124cd29df5 /]# exit
+exit
+
+在编写dockerfile的时候，RUN用于执行后面跟着的命令。有两种格式：
+shell格式
+
+RUN <shell命令>
+
+exec格式
+
+RUN ["可执行文件","参数1","参数2"]
+
+## 1.2 常用的一些命令
+FROM
+RUN
+MAINTAINER
+CMD
+
+### 1.2.1 COPY
+[root@docker ~]# cp dockerfile dockerfile1
+[root@docker ~]# ls
+anaconda-ks.cfg  bridge-utils-1.5-9.el7.x86_64.rpm  dockerfile  dockerfile1  hehe.txt
+[root@docker ~]# vim dockerfile1
+[root@docker ~]# cat dockerfile1
+FROM centos:v1.0
+MAINTAINER tianlaoshi
+RUN mkdir /t320
+COPY anaconda-ks.cfg /t320
+
+CMD ["/bin/bash"]
+[root@docker ~]# docker build -t centos:v1.1 . -f dockerfile1
+[+] Building 0.4s (8/8) FINISHED                                                                                                                 
+ => [internal] load build definition from dockerfile1                                                                                       0.0s
+ => => transferring dockerfile: 139B                                                                                                        0.0s
+ => [internal] load .dockerignore                                                                                                           0.0s
+ => => transferring context: 2B                                                                                                             0.0s
+ => [internal] load metadata for docker.io/library/centos:v1.0                                                                              0.0s
+ => [1/3] FROM docker.io/library/centos:v1.0                                                                                                0.0s
+ => [internal] load build context                                                                                                           0.0s
+ => => transferring context: 1.17kB                                                                                                         0.0s
+ => [2/3] RUN mkdir /t320                                                                                                                   0.4s
+ => [3/3] COPY anaconda-ks.cfg /t320                                                                                                        0.0s
+ => exporting to image                                                                                                                      0.0s
+ => => exporting layers                                                                                                                     0.0s
+ => => writing image sha256:09627789fe80c91ae2c1fdc068204f287dce158b6428deb637cfea2d93d16889                                                0.0s
+ => => naming to docker.io/library/centos:v1.1                                                                                              0.0s
+[root@docker ~]# docker images
+REPOSITORY   TAG        IMAGE ID       CREATED          SIZE
+centos       v1.1       09627789fe80   6 seconds ago    307MB
+centos       v1.0       7f1f2e826bd0   10 minutes ago   307MB
+busybox      latest     beae173ccac6   14 months ago    1.24MB
+nginx        latest     605c77e624dd   14 months ago    141MB
+wordpress    latest     c3c92cc3dcb1   15 months ago    616MB
+mysql        latest     3218b38490ce   15 months ago    516MB
+alpine       latest     c059bfaa849c   16 months ago    5.59MB
+centos       8.4.2105   5d0da3dc9764   18 months ago    231MB
+centos       latest     5d0da3dc9764   18 months ago    231MB
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE         COMMAND       CREATED         STATUS         PORTS     NAMES
+7d124cd29df5   centos:v1.0   "/bin/bash"   8 minutes ago   Up 7 minutes             os1
+[root@docker ~]# docker run -tid --name os2 --restart always centos:v1.1
+564f95926d33715f6a96f20d833aaddee4ff9d28483df3442ea6de14da33b784
+[root@docker ~]# docker attach os2
+[root@564f95926d33 /]# cd /t
+t320/ tmp/  
+[root@564f95926d33 /]# cd /t
+t320/ tmp/  
+[root@564f95926d33 /]# cd /t320/
+[root@564f95926d33 t320]# ls
+anaconda-ks.cfg
+[root@564f95926d33 t320]# 
+
+### 1.2.2 ADD
+
+[root@docker ~]# cp dockerfile1 dockerfile2
+[root@docker ~]# vim dockerfile2
+[root@docker ~]# cat dockerfile2
+FROM centos:v1.0
+MAINTAINER tianlaoshi
+RUN mkdir /cp /ad
+COPY anaconda-ks.cfg /cp
+ADD anaconda-ks.cfg /ad
+
+CMD ["/bin/bash"]
+[root@docker ~]# docker build -t centos:v1.2 . -f dockerfile2
+[+] Building 0.5s (9/9) FINISHED                                                                                                                 
+ => [internal] load build definition from dockerfile2                                                                                       0.0s
+ => => transferring dockerfile: 163B                                                                                                        0.0s
+ => [internal] load .dockerignore                                                                                                           0.0s
+ => => transferring context: 2B                                                                                                             0.0s
+ => [internal] load metadata for docker.io/library/centos:v1.0                                                                              0.0s
+ => CACHED [1/4] FROM docker.io/library/centos:v1.0                                                                                         0.0s
+ => [internal] load build context                                                                                                           0.0s
+ => => transferring context: 93B                                                                                                            0.0s
+ => [2/4] RUN mkdir /cp /ad                                                                                                                 0.4s
+ => [3/4] COPY anaconda-ks.cfg /cp                                                                                                          0.0s
+ => [4/4] ADD anaconda-ks.cfg /ad                                                                                                           0.0s
+ => exporting to image                                                                                                                      0.0s
+ => => exporting layers                                                                                                                     0.0s
+ => => writing image sha256:17395a6134caebb51af71434d35173a95093a218c036387e4361f7c8d9100a54                                                0.0s
+ => => naming to docker.io/library/centos:v1.2                                                                                              0.0s
+[root@docker ~]# docker run -tid --name os3 --restart always centos:v1.2
+8b1561d6cf9a0b0836604b995c8dd2569cfe0c2bf49e4c68b4dc4cedbc510d1d
+[root@docker ~]# docker attach os3
+[root@8b1561d6cf9a /]# ls /cp/
+anaconda-ks.cfg
+[root@8b1561d6cf9a /]# ls /ad/
+anaconda-ks.cfg
+
+copy 和 add 区别在哪里呢？
+[root@docker ~]# ls
+anaconda-ks.cfg  bridge-utils-1.5-9.el7.x86_64.rpm  dockerfile  dockerfile1  dockerfile2  hehe.txt
+[root@docker ~]# cp anaconda-ks.cfg a1.txt
+[root@docker ~]# cp anaconda-ks.cfg a2.txt
+[root@docker ~]# cp anaconda-ks.cfg a3.txt
+[root@docker ~]# ls
+a1.txt  a2.txt  a3.txt  anaconda-ks.cfg  bridge-utils-1.5-9.el7.x86_64.rpm  dockerfile  dockerfile1  dockerfile2  hehe.txt
+[root@docker ~]# 
+[root@docker ~]# ls
+a1.txt  a2.txt  a3.txt  anaconda-ks.cfg  bridge-utils-1.5-9.el7.x86_64.rpm  dockerfile  dockerfile1  dockerfile2  hehe.txt
+[root@docker ~]# tar -zcvf aaa.tar.gz a1.txt a2.txt a3.txt 
+a1.txt
+a2.txt
+a3.txt
+[root@docker ~]# ls
+a1.txt  a2.txt  a3.txt  aaa.tar.gz  anaconda-ks.cfg  bridge-utils-1.5-9.el7.x86_64.rpm  dockerfile  dockerfile1  dockerfile2  hehe.txt
+[root@docker ~]# ls
+a1.txt  a2.txt  a3.txt  aaa.tar.gz  anaconda-ks.cfg  bridge-utils-1.5-9.el7.x86_64.rpm  dockerfile  dockerfile1  dockerfile2  hehe.txt
+[root@docker ~]# cp dockerfile2 dockerfile3
+[root@docker ~]# vim dockerfile3 
+[root@docker ~]# cat dockerfile3
+FROM centos:v1.0
+MAINTAINER tianlaoshi
+RUN mkdir /cp /ad
+COPY aaa.tar.gz /cp
+ADD aaa.tar.gz /ad
+
+CMD ["/bin/bash"]
+[root@docker ~]# docker build -t centos:v1.3 . -f dockerfile3
+[+] Building 0.1s (9/9) FINISHED                                                                                                                 
+ => [internal] load .dockerignore                                                                                                           0.0s
+ => => transferring context: 2B                                                                                                             0.0s
+ => [internal] load build definition from dockerfile3                                                                                       0.0s
+ => => transferring dockerfile: 153B                                                                                                        0.0s
+ => [internal] load metadata for docker.io/library/centos:v1.0                                                                              0.0s
+ => [1/4] FROM docker.io/library/centos:v1.0                                                                                                0.0s
+ => [internal] load build context                                                                                                           0.0s
+ => => transferring context: 823B                                                                                                           0.0s
+ => CACHED [2/4] RUN mkdir /cp /ad                                                                                                          0.0s
+ => [3/4] COPY aaa.tar.gz /cp                                                                                                               0.0s
+ => [4/4] ADD aaa.tar.gz /ad                                                                                                                0.1s
+ => exporting to image                                                                                                                      0.0s
+ => => exporting layers                                                                                                                     0.0s
+ => => writing image sha256:935d81ca8fcca0e564507185308986435702c9320eb7d420543da2e2f71cec8a                                                0.0s
+ => => naming to docker.io/library/centos:v1.3                                                                                              0.0s
+[root@docker ~]# docker run -tid --name os4 --restart always centos:v1.3 
+1cd1b6c9e29205e69a7f4e3b3db593e6ad6257f8016ac54c5c09dc08374871da
+[root@docker ~]# docker attach os
+os1  os2  os3  os4  
+[root@docker ~]# docker attach os4
+[root@1cd1b6c9e292 /]# ls /cp
+aaa.tar.gz
+[root@1cd1b6c9e292 /]# ls /ad/
+a1.txt	a2.txt	a3.txt
+
+copy不能跟 ../aaa   /aaa/
+
+### 1.2.3 自定义Nginx镜像
+[root@docker ~]# cp dockerfile3 dockerfile_nginx
+[root@docker ~]# vim dockerfile_nginx 
+[root@docker ~]# cat dockerfile_nginx 
+FROM centos:v1.0
+MAINTAINER tianlaoshi
+RUN yum install -y nginx
+COPY index.html /usr/share/nginx/html/
+
+CMD ["nginx","-g","daemon off;"]
+
+
+[root@docker ~]# ls
+a1.txt  a3.txt      anaconda-ks.cfg                    dockerfile   dockerfile2  dockerfile_nginx
+a2.txt  aaa.tar.gz  bridge-utils-1.5-9.el7.x86_64.rpm  dockerfile1  dockerfile3  hehe.txt
+
+[root@docker ~]# vim index.html
+[root@docker ~]# docker build -t nginx:v1 . -f dockerfile_nginx 
+[+] Building 20.7s (8/8) FINISHED                                                                                                                
+ => [internal] load build definition from dockerfile_nginx                                                                                  0.0s
+ => => transferring dockerfile: 182B                                                                                                        0.0s
+ => [internal] load .dockerignore                                                                                                           0.0s
+ => => transferring context: 2B                                                                                                             0.0s
+ => [internal] load metadata for docker.io/library/centos:v1.0                                                                              0.0s
+ => CACHED [1/3] FROM docker.io/library/centos:v1.0                                                                                         0.0s
+ => [2/3] RUN yum install -y nginx                                                                                                         20.2s
+ => [internal] load build context                                                                                                           0.0s
+ => => transferring context: 74B                                                                                                            0.0s
+ => [3/3] COPY index.html /usr/share/nginx/html/                                                                                            0.0s 
+ => exporting to image                                                                                                                      0.4s 
+ => => exporting layers                                                                                                                     0.4s 
+ => => writing image sha256:af7cf7106539ab5717ebb47a7acf5b8cddaa557ab734fb9fa1516d7809fb19c1                                                0.0s 
+ => => naming to docker.io/library/nginx:v1                                                                                                 0.0s 
+[root@docker ~]#                                                                                                                                 
+[root@docker ~]# docker history 
+alpine:latest     centos:8.4.2105   centos:v1.0       centos:v1.2       mysql:latest      nginx:v1          
+busybox:latest    centos:latest     centos:v1.1       centos:v1.3       nginx:latest      wordpress:latest  
+[root@docker ~]# docker history nginx:v1 
+IMAGE          CREATED              CREATED BY                                      SIZE      COMMENT
+af7cf7106539   About a minute ago   CMD ["nginx" "-g" "daemon off;"]                0B        buildkit.dockerfile.v0
+<missing>      About a minute ago   COPY index.html /usr/share/nginx/html/ # bui…   37B       buildkit.dockerfile.v0
+<missing>      About a minute ago   RUN /bin/sh -c yum install -y nginx # buildk…   79.5MB    buildkit.dockerfile.v0
+<missing>      About a minute ago   MAINTAINER tianlaoshi                           0B        buildkit.dockerfile.v0
+<missing>      34 minutes ago       CMD ["/bin/bash"]                               0B        buildkit.dockerfile.v0
+<missing>      34 minutes ago       RUN /bin/sh -c yum install -y vim net-tools …   75.7MB    buildkit.dockerfile.v0
+<missing>      34 minutes ago       RUN /bin/sh -c minorver=8.4.2105 && sed -e "…   17.6kB    buildkit.dockerfile.v0
+<missing>      34 minutes ago       MAINTAINER tianlaoshi                           0B        buildkit.dockerfile.v0
+<missing>      18 months ago        /bin/sh -c #(nop)  CMD ["/bin/bash"]            0B        
+<missing>      18 months ago        /bin/sh -c #(nop)  LABEL org.label-schema.sc…   0B        
+<missing>      18 months ago        /bin/sh -c #(nop) ADD file:805cb5e15fb6e0bb0…   231MB     
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE         COMMAND       CREATED          STATUS          PORTS     NAMES
+c60f65bcae72   centos:v1.3   "/bin/bash"   9 minutes ago    Up 7 minutes              n1
+1cd1b6c9e292   centos:v1.3   "/bin/bash"   14 minutes ago   Up 10 minutes             os4
+8b1561d6cf9a   centos:v1.2   "/bin/bash"   18 minutes ago   Up 17 minutes             os3
+564f95926d33   centos:v1.1   "/bin/bash"   23 minutes ago   Up 21 minutes             os2
+7d124cd29df5   centos:v1.0   "/bin/bash"   32 minutes ago   Up 31 minutes             os1
+[root@docker ~]# docker run -tid --name n2 --restart always -p 80:80 nginx:v1 
+96a24372a6618f76818719a54341940bc81fe8001a2d90f8298879c579a876ed
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE         COMMAND                  CREATED          STATUS          PORTS                               NAMES
+96a24372a661   nginx:v1      "nginx -g 'daemon of…"   2 seconds ago    Up 1 second     0.0.0.0:80->80/tcp, :::80->80/tcp   n2
+c60f65bcae72   centos:v1.3   "/bin/bash"              9 minutes ago    Up 8 minutes                                        n1
+1cd1b6c9e292   centos:v1.3   "/bin/bash"              14 minutes ago   Up 11 minutes                                       os4
+8b1561d6cf9a   centos:v1.2   "/bin/bash"              19 minutes ago   Up 18 minutes                                       os3
+564f95926d33   centos:v1.1   "/bin/bash"              24 minutes ago   Up 22 minutes                                       os2
+7d124cd29df5   centos:v1.0   "/bin/bash"              33 minutes ago   Up 31 minutes                                       os1
+
+之后，通过浏览器访问主机即可访问到nginx服务
+http://192.168.100.177/
+
+### 1.2.4 ENV
+[root@docker ~]# ls
+a1.txt  a3.txt      anaconda-ks.cfg                    dockerfile   dockerfile2  dockerfile_nginx  index.html
+a2.txt  aaa.tar.gz  bridge-utils-1.5-9.el7.x86_64.rpm  dockerfile1  dockerfile3  hehe.txt
+[root@docker ~]# cp dockerfile dockerfile4
+[root@docker ~]# vim dockerfile4 
+[root@docker ~]# cat dockerfile4
+FROM centos:v1.0
+MAINTAINER tianlaoshi
+ENV abc=hehehe
+
+CMD ["/bin/bash"]
+[root@docker ~]# docker build -t centos:v1.4 . -f dockerfile4
+[+] Building 0.0s (5/5) FINISHED                                                                                                                 
+ => [internal] load build definition from dockerfile4                                                                                       0.0s
+ => => transferring dockerfile: 111B                                                                                                        0.0s
+ => [internal] load .dockerignore                                                                                                           0.0s
+ => => transferring context: 2B                                                                                                             0.0s
+ => [internal] load metadata for docker.io/library/centos:v1.0                                                                              0.0s
+ => CACHED [1/1] FROM docker.io/library/centos:v1.0                                                                                         0.0s
+ => exporting to image                                                                                                                      0.0s
+ => => exporting layers                                                                                                                     0.0s
+ => => writing image sha256:2e03b8a3109bccb13dec2191cfe23688e5f98b9b21b3cdafb5bfd79bcedaf113                                                0.0s
+ => => naming to docker.io/library/centos:v1.4                                                                                              0.0s
+[root@docker ~]# docker run -tid --name os1 --restart always centos:v1.4
+1db34007500a8199f971a8616c13b7955b17d3904145e6531e47dca8c506a7d6
+[root@docker ~]# docker attach os1 
+[root@1db34007500a /]# echo $abc
+hehehe
+[root@1db34007500a /]# 
+
+### 1.2.5 USER
+[root@docker ~]# cp dockerfile1 dockerfile5
+[root@docker ~]# vim dockerfile5
+[root@docker ~]# cat dockerfile5
+FROM centos:v1.0
+MAINTAINER tianlaoshi
+RUN yum install -y passwd
+RUN useradd tom
+RUN echo "redhat" |passwd tom --stdin
+USER tom
+
+CMD ["/bin/bash"]
+[root@docker ~]# docker build -t centos:user . -f dockerfile5
+[+] Building 8.2s (8/8) FINISHED                                                                                                                 
+ => [internal] load build definition from dockerfile5                                                                                       0.0s
+ => => transferring dockerfile: 187B                                                                                                        0.0s
+ => [internal] load .dockerignore                                                                                                           0.0s
+ => => transferring context: 2B                                                                                                             0.0s
+ => [internal] load metadata for docker.io/library/centos:v1.0                                                                              0.0s
+ => CACHED [1/4] FROM docker.io/library/centos:v1.0                                                                                         0.0s
+ => [2/4] RUN yum install -y passwd                                                                                                         7.2s
+ => [3/4] RUN useradd tom                                                                                                                   0.4s
+ => [4/4] RUN echo "redhat" |passwd tom --stdin                                                                                             0.4s 
+ => exporting to image                                                                                                                      0.1s 
+ => => exporting layers                                                                                                                     0.1s 
+ => => writing image sha256:d74bfd9daa35e24b2f56cb8f0a8cc6d86f64d978086212cebcc5c7a3fe5a7215                                                0.0s 
+ => => naming to docker.io/library/centos:user                                                                                              0.0s 
+[root@docker ~]# 
+[root@docker ~]# docker run -tid --name os2 --restart always centos:user 
+46438dfd50829e04a40c99f3dadd5a5b4ca2fdd9a9f49b1007900d98ccbee5fd
+
+[root@docker ~]# docker attach os2
+
+### 1.2.6 VOLUME
+[root@docker ~]# ls
+a1.txt  a3.txt      anaconda-ks.cfg                    dockerfile   dockerfile2  dockerfile4  dockerfile_nginx  index.html
+a2.txt  aaa.tar.gz  bridge-utils-1.5-9.el7.x86_64.rpm  dockerfile1  dockerfile3  dockerfile5  hehe.txt
+[root@docker ~]# cp dockerfile1 dockerfile6
+[root@docker ~]# vim dockerfile6
+[root@docker ~]# cat dockerfile6
+FROM centos:v1.0
+MAINTAINER tianlaoshi
+VOLUME /data
+
+CMD ["/bin/bash"]
+[root@docker ~]# docker build -t centos:volume . -f dockerfile6
+[+] Building 0.0s (5/5) FINISHED                                                                                                                 
+ => [internal] load build definition from dockerfile6                                                                                       0.0s
+ => => transferring dockerfile: 109B                                                                                                        0.0s
+ => [internal] load .dockerignore                                                                                                           0.0s
+ => => transferring context: 2B                                                                                                             0.0s
+ => [internal] load metadata for docker.io/library/centos:v1.0                                                                              0.0s
+ => CACHED [1/1] FROM docker.io/library/centos:v1.0                                                                                         0.0s
+ => exporting to image                                                                                                                      0.0s
+ => => exporting layers                                                                                                                     0.0s
+ => => writing image sha256:83a7f27448f73cc3eec117e3ad62303db82099c58cc7b51812a13cb71fa77e82                                                0.0s
+ => => naming to docker.io/library/centos:volume                                                                                            0.0s
+[root@docker ~]# docker run -ti --rm centos:volume 
+[root@160bf71e71da /]# ls /data/
+[root@160bf71e71da /]# exit
+exit
+
+VOLUME是docker在镜像中指定好了，未来容器要映射的具体目录；
+而RUN mkdir 仅仅是在容器里面单独创建一个目录。 docker run -tid --name n1 --restart always -v /aaa:/bbb 
+
+### 1.2.7 配置SSH镜像
+
+[root@docker ~]# ls
+a1.txt  a3.txt      anaconda-ks.cfg                    dockerfile   dockerfile2  dockerfile4  dockerfile6  dockerfile8       hehe.txt
+a2.txt  aaa.tar.gz  bridge-utils-1.5-9.el7.x86_64.rpm  dockerfile1  dockerfile3  dockerfile5  dockerfile7  dockerfile_nginx  index.html
+[root@docker ~]# vim dockerfile8
+[root@docker ~]# cat dockerfile8
+FROM centos:8.4.2105
+MAINTAINER tianlaoshi
+RUN minorver=8.4.2105 \
+&& sed -e "s|^mirrorlist=|#mirrorlist=|g" -e "s|^#baseurl=http://mirror.centos.org/\$contentdir/\$releasever|baseurl=https://mirrors.aliyun.com/centos-vault/$minorver|g" -i.bak /etc/yum.repos.d/CentOS-*.repo
+RUN yum install -y vim net-tools iproute passwd openssh-clients openssh-server
+RUN ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key
+RUN ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key
+RUN ssh-keygen -t ecdsa -f /etc/ssh/ssh_host_ecdsa_key
+RUN echo "root:redhat" | chpasswd
+EXPOSE 22
+
+CMD ["/usr/sbin/sshd","-D"]
+[root@docker ~]# docker build -t centos:ssh . -f dockerfile8
+[+] Building 36.7s (11/11) FINISHED                                                                                                              
+ => [internal] load build definition from dockerfile8                                                                                       0.0s
+ => => transferring dockerfile: 632B                                                                                                        0.0s
+ => [internal] load .dockerignore                                                                                                           0.0s
+ => => transferring context: 2B                                                                                                             0.0s
+ => [internal] load metadata for docker.io/library/centos:8.4.2105                                                                          0.0s
+ => [1/7] FROM docker.io/library/centos:8.4.2105                                                                                            0.0s
+ => CACHED [2/7] RUN minorver=8.4.2105 && sed -e "s|^mirrorlist=|#mirrorlist=|g" -e "s|^#baseurl=http://mirror.centos.org/$contentdir/$rel  0.0s
+ => [3/7] RUN yum install -y vim net-tools iproute passwd openssh-clients openssh-server                                                   34.0s
+ => [4/7] RUN ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key                                                                                0.9s 
+ => [5/7] RUN ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key                                                                        0.5s 
+ => [6/7] RUN ssh-keygen -t ecdsa -f /etc/ssh/ssh_host_ecdsa_key                                                                            0.4s 
+ => [7/7] RUN echo "root:redhat" | chpasswd                                                                                                 0.4s 
+ => exporting to image                                                                                                                      0.4s 
+ => => exporting layers                                                                                                                     0.4s 
+ => => writing image sha256:0a446e1f878c74ef1c283076ad5073dd95f125c9743ed1944aef3002768cf34b                                                0.0s 
+ => => naming to docker.io/library/centos:ssh                                                                                               0.0s 
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+[root@docker ~]# docker run -tid --name os1 --restart always centos:ssh 
+ada3d5e49b36cbbc77f7cdae74fe42e2270a8dcd368666ef35446e365ce1bbea
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE        COMMAND               CREATED         STATUS         PORTS     NAMES
+ada3d5e49b36   centos:ssh   "/usr/sbin/sshd -D"   2 seconds ago   Up 2 seconds   22/tcp    os1
+[root@docker ~]# docker inspect os1 |grep -i ipaddress
+            "SecondaryIPAddresses": null,
+            "IPAddress": "172.17.0.2",
+                    "IPAddress": "172.17.0.2",
+[root@docker ~]# ssh root@172.17.0.2
+The authenticity of host '172.17.0.2 (172.17.0.2)' can't be established.
+ECDSA key fingerprint is SHA256:hK0H4STKRipd/RHBEhM6Ri2LVcqjWJzu/bhoVIdxG1s.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added '172.17.0.2' (ECDSA) to the list of known hosts.
+root@172.17.0.2's password: 
+"System is booting up. Unprivileged users are not permitted to log in yet. Please come back later. For technical details, see pam_nologin(8)."
+[root@ada3d5e49b36 ~]# ls /
+bin  dev  etc  home  lib  lib64  lost+found  media  mnt  opt  proc  root  run  sbin  srv  sys  tmp  usr  var
+[root@ada3d5e49b36 ~]# cd /etc/ssh
+[root@ada3d5e49b36 ssh]# ls
+moduli	    ssh_config.d	ssh_host_ecdsa_key.pub	ssh_host_ed25519_key.pub  ssh_host_rsa_key.pub
+ssh_config  ssh_host_ecdsa_key	ssh_host_ed25519_key	ssh_host_rsa_key	  sshd_config
+[root@ada3d5e49b36 ssh]# exit
+logout
+Connection to 172.17.0.2 closed.
+[root@docker ~]# ls /etc/ssh/
+moduli      ssh_config.d  ssh_host_ecdsa_key      ssh_host_ed25519_key      ssh_host_rsa_key
+ssh_config  sshd_config   ssh_host_ecdsa_key.pub  ssh_host_ed25519_key.pub  ssh_host_rsa_key.pub
