@@ -2,8 +2,6 @@ Markdown 语法格式
 # 2 架构和概念
 ## 2.1 概念
 
-Docker k8s  kubernetes  k3s
-
 为什么提到 docker 就要提 k8s
 
 Docker 一家公司的名字，产品叫 Docker
