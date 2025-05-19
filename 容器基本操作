@@ -1,0 +1,493 @@
+Markdown 语法格式
+# 2 架构和概念
+## 2.1 概念
+
+Docker k8s  kubernetes  k3s
+
+为什么提到 docker 就要提 k8s
+
+Docker 一家公司的名字，产品叫 Docker
+Oracle 一家公司的名字（甲骨文），产品叫 Oracle
+
+容器技术，除了 docker，podman，lxd/lxc，containerd，runc等等
+k8s 容器编排工具。
+
+理解虚拟机和容器之间的区别：
+先理解一点：虚拟机目的是为了隔离用户；容器目的是为了隔离应用（namespace cgroup）。
+
+## 2.1 安装docker
+
+yum install -y vim net-tools bash-completion yum-utils
+bash 或者退出重新登录，为了自动补全
+
+[root@docker yum.repos.d]# yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+Adding repo from: https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+[root@docker yum.repos.d]# ls
+CentOS-Stream-AppStream.repo      CentOS-Stream-Extras.repo            CentOS-Stream-PowerTools.repo        docker-ce.repo
+CentOS-Stream-BaseOS.repo         CentOS-Stream-HighAvailability.repo  CentOS-Stream-RealTime.repo
+CentOS-Stream-Debuginfo.repo      CentOS-Stream-Media.repo             CentOS-Stream-ResilientStorage.repo
+CentOS-Stream-Extras-common.repo  CentOS-Stream-NFV.repo               CentOS-Stream-Sources.repo
+
+查看docker版本
+yum list docker-ce --showduplicates | sort -r
+
+默认安装最新版
+yum install -y docker-ce
+安装指定版本
+yum install -y docker-ce-20.10.22 docker-ce-cli-20.10.22
+
+[root@docker yum.repos.d]# docker -v
+Docker version 23.0.1, build a5ee5b1
+
+开启docker服务
+[root@docker ~]# systemctl status docker.service 
+● docker.service - Docker Application Container Engine
+   Loaded: loaded (/usr/lib/systemd/system/docker.service; disabled; vendor preset: disabled)
+   Active: inactive (dead)
+     Docs: https://docs.docker.com
+[root@docker ~]# 
+[root@docker ~]# systemctl start docker.service 
+[root@docker ~]# systemctl enable docker.service 
+Created symlink /etc/systemd/system/multi-user.target.wants/docker.service → /usr/lib/systemd/system/docker.service.
+
+# 3 镜像管理
+[root@docker ~]# docker help
+
+[root@docker ~]# vim /etc/docker/daemon.json
+[root@docker ~]# cat /etc/docker/daemon.json 
+{
+  "registry-mirrors": ["https://cc2d8woc.mirror.aliyuncs.com"]
+}
+
+[root@docker ~]# systemctl daemon-reload
+[root@docker ~]# systemctl restart docker
+
+标准的完整名称
+      服务器                       仓库/分类 镜像   版本
+registry.cn-hangzhou.aliyuncs.com/cloudcs/centos:latest
+
+
+# 1 容器参数
+
+运行一个容器
+[root@docker ~]# docker images
+REPOSITORY   TAG       IMAGE ID       CREATED         SIZE
+mysql        latest    3218b38490ce   14 months ago   516MB
+alpine       latest    c059bfaa849c   15 months ago   5.59MB
+[root@docker ~]# docker run alpine
+[root@docker ~]# docker ps  --查询的是正在运行的容器
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+[root@docker ~]# docker ps -a  --查询所有的容器
+CONTAINER ID   IMAGE     COMMAND     CREATED          STATUS                      PORTS     NAMES
+8145733f33bb   alpine    "/bin/sh"   35 seconds ago   Exited (0) 33 seconds ago             optimistic_bartik
+
+## -t 参数
+[root@docker ~]# docker rm 8
+8
+[root@docker ~]# docker run -t alpine  --为shell添加一个伪终端
+/ # ^[[7;5R
+^C
+/ # ^[[9;5R
+^C
+/ # ^[[11;5R^C
+/ # ^[[12;5R
+
+但是发现好像不能交互
+
+## -i 参数
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND     CREATED          STATUS          PORTS     NAMES
+2c95c8f17333   alpine    "/bin/sh"   50 seconds ago   Up 49 seconds             compassionate_banach
+[root@docker ~]# docker rm 2
+Error response from daemon: You cannot remove a running container 2c95c8f17333142c9da02d2a5660cd9b2b991debc8c0c7bba4886f4222977cef. Stop the container before attempting removal or force remove
+[root@docker ~]# docker rm -f 2
+2
+
+[root@docker ~]# docker run -t -i alpine  --带上交互 i
+/ # ls
+bin    dev    etc    home   lib    media  mnt    opt    proc   root   run    sbin   srv    sys    tmp    usr    var
+/ # 
+
+## -d 参数
+[root@docker ~]# docker run -t -i -d --restart always alpine  --容器创建出来之后，不让自动进去到容器里面  -d 在后端运行
+b4f87a609c194c0a52b509e8305d68a58bac0c1fe59fc0d4788e97c1bf31d8e7
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND     CREATED          STATUS         PORTS     NAMES
+b4f87a609c19   alpine    "/bin/sh"   10 seconds ago   Up 9 seconds             suspicious_torvalds
+[root@docker ~]# 
+[root@docker ~]# docker run -tid --restart always alpine  --参数可以合并
+
+## --restart 参数
+[root@docker ~]# docker run -tid --name memeda1 --restart always alpine
+9abc4643bdff0d06fc805192ff4d5557e8aee5fecc72e2cf005386c902067928
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND     CREATED              STATUS              PORTS     NAMES
+9abc4643bdff   alpine    "/bin/sh"   2 seconds ago        Up 1 second                   memeda1
+29de3a34e9a6   alpine    "/bin/sh"   About a minute ago   Up About a minute             amazing_buck
+b4f87a609c19   alpine    "/bin/sh"   3 minutes ago        Up 3 minutes                  suspicious_torvalds
+
+## attach 参数
+进入容器
+[root@docker ~]# docker attach memeda1
+/ # ls /
+bin    dev    etc    home   lib    media  mnt    opt    proc   root   run    sbin   srv    sys    tmp    usr    var
+/ # exit
+[root@docker ~]# docker attach amazing_buck
+/ # ls /
+bin    dev    etc    home   lib    media  mnt    opt    proc   root   run    sbin   srv    sys    tmp    usr    var
+/ # exit
+[root@docker ~]# docker exec -ti memeda1 
+"docker exec" requires at least 2 arguments.
+See 'docker exec --help'.
+
+Usage:  docker exec [OPTIONS] CONTAINER COMMAND [ARG...]
+
+Execute a command in a running container
+
+## exec 参数
+[root@docker ~]# docker exec -ti memeda1 /bin/sh
+/ # ls /
+bin    dev    etc    home   lib    media  mnt    opt    proc   root   run    sbin   srv    sys    tmp    usr    var
+/ # 
+
+## attach和exec区别
+[root@docker ~]# docker run -tid --name memeda2 alpine
+a4e42e988f1d3d6388f58aaca90be4c677b01eb349275cad4caf03e12f7640a3
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND     CREATED         STATUS         PORTS     NAMES
+a4e42e988f1d   alpine    "/bin/sh"   3 seconds ago   Up 2 seconds             memeda2
+9abc4643bdff   alpine    "/bin/sh"   5 minutes ago   Up 3 minutes             memeda1
+29de3a34e9a6   alpine    "/bin/sh"   6 minutes ago   Up 2 minutes             amazing_buck
+b4f87a609c19   alpine    "/bin/sh"   8 minutes ago   Up 8 minutes             suspicious_torvalds
+[root@docker ~]# 
+[root@docker ~]# docker attach memeda2 
+/ # ls /
+bin    dev    etc    home   lib    media  mnt    opt    proc   root   run    sbin   srv    sys    tmp    usr    var
+/ # exit
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND     CREATED         STATUS         PORTS     NAMES
+9abc4643bdff   alpine    "/bin/sh"   5 minutes ago   Up 3 minutes             memeda1
+29de3a34e9a6   alpine    "/bin/sh"   7 minutes ago   Up 3 minutes             amazing_buck
+b4f87a609c19   alpine    "/bin/sh"   9 minutes ago   Up 9 minutes             suspicious_torvalds
+
+通过attach进入，然后exit退出后，容器会自动关闭。通过exec则不会。
+[root@docker ~]# docker start memeda2 
+memeda2
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND     CREATED              STATUS          PORTS     NAMES
+a4e42e988f1d   alpine    "/bin/sh"   About a minute ago   Up 2 seconds              memeda2
+9abc4643bdff   alpine    "/bin/sh"   6 minutes ago        Up 4 minutes              memeda1
+29de3a34e9a6   alpine    "/bin/sh"   8 minutes ago        Up 4 minutes              amazing_buck
+b4f87a609c19   alpine    "/bin/sh"   10 minutes ago       Up 10 minutes             suspicious_torvalds
+[root@docker ~]# docker exec 
+[root@docker ~]# docker exec -ti memeda2 /bin/sh
+/ # ls /
+bin    dev    etc    home   lib    media  mnt    opt    proc   root   run    sbin   srv    sys    tmp    usr    var
+/ # exit
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND     CREATED              STATUS          PORTS     NAMES
+a4e42e988f1d   alpine    "/bin/sh"   About a minute ago   Up 21 seconds             memeda2
+9abc4643bdff   alpine    "/bin/sh"   6 minutes ago        Up 4 minutes              memeda1
+29de3a34e9a6   alpine    "/bin/sh"   8 minutes ago        Up 4 minutes              amazing_buck
+b4f87a609c19   alpine    "/bin/sh"   10 minutes ago       Up 10 minutes             suspicious_torvalds
+
+## sleep
+指定容器生命周期
+[root@docker ~]# docker run -tid --name memeda3 alpine sleep 30
+8d3d69a5877a7713f6ef98a6cb86eef97b6b076bc3e6cd6f18026a91ea26a6e5
+
+临时用一下，之后不留痕迹，带-d参数（用attach）
+[root@docker ~]# docker run -tid --name memeda1 alpine
+4f7407fd4348a1184092cb1de33169ed8f8be6369d1b5642f36bcfd0297e64eb
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND     CREATED         STATUS         PORTS     NAMES
+4f7407fd4348   alpine    "/bin/sh"   3 seconds ago   Up 2 seconds             memeda1
+[root@docker ~]# docker attach memeda1 
+/ # ls /
+bin    dev    etc    home   lib    media  mnt    opt    proc   root   run    sbin   srv    sys    tmp    usr    var
+/ # exit
+[root@docker ~]# docker ps -a
+CONTAINER ID   IMAGE     COMMAND     CREATED          STATUS                    PORTS     NAMES
+4f7407fd4348   alpine    "/bin/sh"   21 seconds ago   Exited (0) 1 second ago             memeda1
+[root@docker ~]# 
+[root@docker ~]# 
+[root@docker ~]# docker run -tid --name memeda2 --rm alpine
+43e081aa46057beb9e9f0825097d847b071006158e1a69709f49825c13f16fac
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND     CREATED         STATUS        PORTS     NAMES
+43e081aa4605   alpine    "/bin/sh"   2 seconds ago   Up 1 second             memeda2
+[root@docker ~]# docker attach memeda2 
+/ # ls /
+bin    dev    etc    home   lib    media  mnt    opt    proc   root   run    sbin   srv    sys    tmp    usr    var
+/ # exit
+[root@docker ~]# docker ps -a
+CONTAINER ID   IMAGE     COMMAND     CREATED              STATUS                      PORTS     NAMES
+4f7407fd4348   alpine    "/bin/sh"   About a minute ago   Exited (0) 57 seconds ago             memeda1
+
+## --rm 参数
+如果没有带-d参数，直接进入的。当退出容器的时候，会直接删除。
+[root@docker ~]# docker run -ti --name memeda3 --rm alpine
+/ # ls /
+bin    dev    etc    home   lib    media  mnt    opt    proc   root   run    sbin   srv    sys    tmp    usr    var
+/ # exit
+
+## -e 参数
+如果要创建一些需要传入参数的容器，比如MySQL
+指定容器环境变量 -e
+[root@docker ~]# docker run -tid --name d1 -e name1=heh1 -e name2=hehe2 --restart always alpine
+02566e8ab81eef7d023e12b44b4f1363bcf0e46d3d35e30dbac40bdb040f5df2
+[root@docker ~]# docker exec -ti d1 /bin/sh
+/ # echo $name1
+heh1
+/ # echo $name2
+hehe2
+/ # 
+
+# 2 容器管理
+## 批量删除容器
+[root@docker ~]# docker ps -a
+CONTAINER ID   IMAGE     COMMAND     CREATED          STATUS                      PORTS     NAMES
+02566e8ab81e   alpine    "/bin/sh"   5 minutes ago    Up 5 minutes                          d1
+6a7d215e3383   alpine    "/bin/sh"   10 minutes ago   Up 9 minutes                          memeda666
+4f7407fd4348   alpine    "/bin/sh"   14 minutes ago   Exited (0) 14 minutes ago             memeda1
+[root@docker ~]# docker ps -q
+02566e8ab81e
+6a7d215e3383
+[root@docker ~]# docker ps -qa
+02566e8ab81e
+6a7d215e3383
+4f7407fd4348
+[root@docker ~]# docker rm -f $(docker ps -qa)
+02566e8ab81e
+6a7d215e3383
+4f7407fd4348
+[root@docker ~]# docker ps -a
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+
+## 容器启动/重启
+docker start xxx
+docker restart xxx
+
+## 容器停止
+docker stop xxx
+
+# 3 容器练习
+## 创建Nginx
+systemctl stop firewalld
+systemctl disable firewalld
+setenforce 0
+sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
+
+[root@docker ~]# systemctl stop firewalld
+[root@docker ~]# systemctl disable firewalld
+[root@docker ~]# setenforce 0
+setenforce: SELinux is disabled
+[root@docker ~]# cat /etc/selinux/config 
+
+# This file controls the state of SELinux on the system.
+# SELINUX= can take one of these three values:
+#     enforcing - SELinux security policy is enforced.
+#     permissive - SELinux prints warnings instead of enforcing.
+#     disabled - No SELinux policy is loaded.
+SELINUX=disabled
+# SELINUXTYPE= can take one of these three values:
+#     targeted - Targeted processes are protected,
+#     minimum - Modification of targeted policy. Only selected processes are protected. 
+#     mls - Multi Level Security protection.
+SELINUXTYPE=targeted
+
+[root@docker ~]# docker run -tid --name web --restart always nginx
+
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS         PORTS     NAMES
+2ac2cd0b5e1b   nginx     "/docker-entrypoint.…"   11 minutes ago   Up 3 minutes   80/tcp    web
+
+[root@docker ~]# docker inspect web
+
+                    "IPAddress": "172.17.0.2",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "MacAddress": "02:42:ac:11:00:02",
+                    "DriverOpts": null
+
+[root@docker ~]# curl -s 172.17.0.2
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+通过网页访问nginx服务
+[root@docker ~]# docker run -tid --name web --restart always -p 8080:80 nginx
+然后通过宿主机浏览器访问 linux虚拟机:端口
+http://192.168.100.177:8080/
+
+## 创建MySQL
+[root@docker ~]# docker run -tid --name db2 --restart always mysql
+83296ba7f4fd320e55a9816fbf7986cb101a929e3e23e6608dde9839bab42b49
+
+[root@docker ~]# docker ps -a
+CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS                         PORTS                                   NAMES
+83296ba7f4fd   mysql     "docker-entrypoint.s…"   22 seconds ago   Restarting (1) 4 seconds ago                                           db2
+
+[root@docker ~]# docker logs db2
+2023-03-14 13:01:31+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.27-1debian10 started.
+2023-03-14 13:01:32+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+2023-03-14 13:01:32+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.27-1debian10 started.
+2023-03-14 13:01:32+00:00 [ERROR] [Entrypoint]: Database is uninitialized and password option is not specified
+    You need to specify one of the following:
+    - MYSQL_ROOT_PASSWORD
+    - MYSQL_ALLOW_EMPTY_PASSWORD
+    - MYSQL_RANDOM_ROOT_PASSWORD
+
+[root@docker ~]# docker run -tid --name db --restart always -e MYSQL_ROOT_PASSWORD=memeda mysql
+
+[root@docker ~]# docker inspect db
+
+                    "IPAddress": "172.17.0.3",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "MacAddress": "02:42:ac:11:00:03",
+                    "DriverOpts": null
+                }
+            }
+        }
+    }
+]
+
+尝试登录mysql
+[root@docker ~]# mysql -uroot -pmemeda -h 172.17.0.3
+-bash: mysql: command not found
+
+[root@docker ~]# yum install -y mariadb
+
+[root@docker ~]# mysql -uroot -pmemeda -h 172.17.0.3
+Welcome to the MariaDB monitor.  Commands end with ; or \g.
+Your MySQL connection id is 8
+Server version: 8.0.27 MySQL Community Server - GPL
+
+Copyright (c) 2000, 2018, Oracle, MariaDB Corporation Ab and others.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+MySQL [(none)]> show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| performance_schema |
+| sys                |
++--------------------+
+4 rows in set (0.003 sec)
+
+MySQL [(none)]> 
+
+通过三方工具连接mysql
+[root@docker ~]# docker run -tid --name db --restart always -e MYSQL_ROOT_PASSWORD=memeda -e MYSQL_USER=henry -e MYSQL_PASSWORD=memeda -e MYSQL_DATABASE=oracle -p 3306:3306 mysql
+231b6a1ce1ffe9fa3b6da5d2c935d3420f1f9054aa76dd64078209e9ede0f2e9
+[root@docker ~]# docker ps 
+CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS          PORTS                                                  NAMES
+231b6a1ce1ff   mysql     "docker-entrypoint.s…"   3 seconds ago    Up 1 second     0.0.0.0:3306->3306/tcp, :::3306->3306/tcp, 33060/tcp   db
+bd25832a15f7   nginx     "/docker-entrypoint.…"   36 minutes ago   Up 36 minutes   0.0.0.0:8080->80/tcp, :::8080->80/tcp                  web
+[root@docker ~]# docker inspect db 
+
+                    "Gateway": "172.17.0.1",
+                    "IPAddress": "172.17.0.3",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "MacAddress": "02:42:ac:11:00:03",
+                    "DriverOpts": null
+
+[root@docker ~]# mysql -u root -pmemeda -h 172.17.0.3
+Welcome to the MariaDB monitor.  Commands end with ; or \g.
+Your MySQL connection id is 8
+Server version: 8.0.27 MySQL Community Server - GPL
+
+Copyright (c) 2000, 2018, Oracle, MariaDB Corporation Ab and others.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+MySQL [(none)]> show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| oracle             |
+| performance_schema |
+| sys                |
++--------------------+
+5 rows in set (0.004 sec)
+
+MySQL [(none)]> 
+
+
+# 4 docker常用命令
+
+docker search 搜索镜像
+docker pull 拉取镜像
+docker run 运行容器
+docker attach/exec 进入容器
+docker logs 查看容器日志
+docker inspect 查看容器底层信息（IP）
+docker history 查看镜像历史信息（对外暴露端口号，进程等等）
+docker start 启动容器
+docker stop 关闭容器
+docker restart 重启容器
+docker rm 删除容器
+docker rmi 删除镜像
+docker ps 查看正在运行的容器
+docker ps -a 查看所有容器
+docker port 查看容器映射端口
+docker cp 容器和主机之间进行文件拷贝
+docker push 推送镜像
+docker tag 对镜像进行设置别名（标签）
+docker help
+
+容器里面的文件可以和外面的主机进行相互拷贝的
+[root@docker ~]# docker cp /etc/hosts os1:/tmp
+Successfully copied 2.048kB to os1:/tmp
+[root@docker ~]# docker exec -ti 
+db   os1  web  
+[root@docker ~]# docker exec -ti os1 ls /tmp
+hosts
+[root@docker ~]# docker exec -ti os1 /bin/sh
+/ # ls /tmp/
+hosts
+/ # exit
+[root@docker ~]# 
+[root@docker ~]# docker exec -ti os1 /bin/sh
+/ # cd /tmp/
+/tmp # touch hehe.txt
+/tmp # ls
+hehe.txt  hosts
+/tmp # exit
+[root@docker ~]# docker cp os1:/tmp/hehe.txt .
+Successfully copied 1.536kB to /root/.
+[root@docker ~]# ls
+anaconda-ks.cfg  hehe.txt
