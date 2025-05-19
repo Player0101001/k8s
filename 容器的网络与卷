@@ -1,0 +1,430 @@
+# 1 网络管理
+-------
+## 1.1 了解Docker0 桥接
+[root@docker ~]# docker network ls
+NETWORK ID     NAME      DRIVER    SCOPE
+d0630235d360   bridge    bridge    local
+80313e5bb898   host      host      local
+e499ca099e3b   none      null      local
+
+当我们去创建一个容器的时候，容器默认使用的是哪个网络呢？bridge，对应的是 docker0
+[root@docker ~]# ifconfig 
+docker0: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
+        inet 172.17.0.1  netmask 255.255.0.0  broadcast 172.17.255.255
+        inet6 fe80::42:9ff:feb6:797d  prefixlen 64  scopeid 0x20<link>
+        ether 02:42:09:b6:79:7d  txqueuelen 0  (Ethernet)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 9  bytes 870 (870.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+创建一个容器观察下
+[root@docker ~]# docker images
+REPOSITORY   TAG       IMAGE ID       CREATED         SIZE
+nginx        latest    605c77e624dd   14 months ago   141MB
+mysql        latest    3218b38490ce   15 months ago   516MB
+alpine       latest    c059bfaa849c   15 months ago   5.59MB
+[root@docker ~]# docker run -tid --name linux1 --restart always alpine
+799aeba3852d88299b86b9a07f9acfc0956666a3815db09b15540cde2c8cc76a
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND     CREATED         STATUS        PORTS     NAMES
+799aeba3852d   alpine    "/bin/sh"   2 seconds ago   Up 1 second             linux1
+[root@docker ~]# docker inspect linux1 |grep -i ip
+            "IpcMode": "private",
+            "LinkLocalIPv6Address": "",
+            "LinkLocalIPv6PrefixLen": 0,
+            "SecondaryIPAddresses": null,
+            "SecondaryIPv6Addresses": null,
+            "GlobalIPv6Address": "",
+            "GlobalIPv6PrefixLen": 0,
+            "IPAddress": "172.17.0.2",
+            "IPPrefixLen": 16,
+            "IPv6Gateway": "",
+                    "IPAMConfig": null,
+                    "IPAddress": "172.17.0.2",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+
+容器获取到的IP地址为 172.17.0.2，相当于查了一条网线到docker0虚拟交换机上了。
+云计算：LinuxBridge 虚拟交换机/OVS 虚拟交换机
+brctl show / ovs-vsctl
+
+默认情况下，8版本系统里面不提供linux bridge命令对应的包文件，可以直接联网安装7版本，都适用。
+yum install -y https://mirrors.aliyun.com/centos/7/os/x86_64/Packages/bridge-utils-1.5-9.el7.x86_64.rpm
+
+[root@docker ~]# brctl show
+bridge name	bridge id		STP enabled	interfaces
+docker0		8000.024209b6797d	no		vethc6554a5
+
+看到docker0上多了一个接口：vethc6554a5
+这个名字可以在物理机上（虚拟机）通过ip a查到
+[root@docker ~]# ip a |grep veth
+15: vethc6554a5@if14: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master docker0 state UP group default 
+
+会看到，该接口连接到了14号口，14号口是谁呢？
+登录到容器里面查看
+[root@docker ~]# docker exec -ti linux1 /bin/sh
+/ # ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+14: eth0@if15: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue state UP 
+    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.2/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+14号口就是我容器的虚拟网卡对应的网口。
+这时候容器的eth0又连接到了15号口。它就是物理机的vethc6554a5。
+他们是一对儿veth pair，这样就建立起了连接。
+
+## 1.2 自定义网络
+
+docker network create -d bridge --subnet 192.168.66.0/24 mynet
+[root@docker ~]# docker network ls
+NETWORK ID     NAME      DRIVER    SCOPE
+296e07aa1cd4   bridge    bridge    local
+80313e5bb898   host      host      local
+334026f76e5e   mynet     bridge    local
+e499ca099e3b   none      null      local
+
+这时候物理机（linux）就会多出一个虚拟网卡，也是linux bridge类型的虚拟交换机。
+[root@docker ~]# ifconfig
+br-334026f76e5e: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
+        inet 192.168.66.1  netmask 255.255.255.0  broadcast 192.168.66.255
+        ether 02:42:92:8f:7a:88  txqueuelen 0  (Ethernet)
+        RX packets 2669  bytes 663609 (648.0 KiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 3081  bytes 25125105 (23.9 MiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+docker0: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
+        inet 172.17.0.1  netmask 255.255.0.0  broadcast 172.17.255.255
+        inet6 fe80::42:31ff:feee:3460  prefixlen 64  scopeid 0x20<link>
+        ether 02:42:31:ee:34:60  txqueuelen 0  (Ethernet)
+        RX packets 2669  bytes 663609 (648.0 KiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 3081  bytes 25125105 (23.9 MiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+......
+
+查看当前虚拟交换机
+[root@docker ~]# brctl show
+bridge name	bridge id		STP enabled	interfaces
+br-334026f76e5e		8000.0242928f7a88	no		
+docker0		8000.024231ee3460	no		
+
+通过自定义网络创建容器
+docker run -tid --name linux4 --restart always --network mynet alpine
+
+## 1.3 容器互联
+搭建一个wordpress博客
+
+Mysql在创建容器的时候，要指定一个变量：MYSQL_ROOT_PASSWORD
+
+对于wordpress，需要连接到mysql上面，需要需要哪个账号和密码？Mysql的服务器是什么？
+所以，在wordpress上面要提前录入变量，涉及4个变量：
+
+WORDPRESS_DB_HOST 指定wordpress的mysql服务器地址
+WORDPRESS_DB_USER 指定wordpress 使用哪个用户连接数据库
+WORDPRESS_DB_PASSWORD 指定密码
+WORDPRESS_DB_NAME 要写入哪个数据库
+
+这里考虑一个问题，这个mysql有没有必要让外界可以访问到呢？其实是没有必要的。也就是说别人访问的是wordpress，不需在mysql上做端口映射。只需要在wordpress上做端口映射即可。
+
+mkdir /db
+docker run -tid --name db --restart always -v /db:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=rootroot -e MYSQL_DATABASE=wordpress docker.io/mysql
+d9952d1aa1faa60b80c7bf063b2fe24242e97be23824711010f2d059f7e9a10c
+
+查看容器
+docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                 NAMES
+d9952d1aa1fa        docker.io/mysql     "docker-entrypoint..."   3 seconds ago       Up 3 seconds        3306/tcp, 33060/tcp   db
+
+查看容器DB的ip地址并进行登录
+docker inspect db
+mysql -u root -prootroot -h 172.17.0.2
+
+注意：如果数据库版本采用的是5.7，有时候密码策略问题会导致无法登录，按照以下操作流程进行修改即可。
+
+docker inspect db
+docker exec -ti db /bin/bash
+root@d9952d1aa1fa:/# mysql -u root -prootroot
+mysql> use mysql
+mysql> select host,user,plugin from user where user='root';
++-----------+------+-----------------------+
+| host      | user | plugin                |
++-----------+------+-----------------------+
+| %         | root | caching_sha2_password |
+| localhost | root | caching_sha2_password |
++-----------+------+-----------------------+
+2 rows in set (0.00 sec)
+
+更改密码策略
+mysql> alter user 'root'@'%' identified with mysql_native_password by 'rootroot';
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> select host,user,plugin from user where user='root';
++-----------+------+-----------------------+
+| host      | user | plugin                |
++-----------+------+-----------------------+
+| %         | root | mysql_native_password |
+| localhost | root | caching_sha2_password |
++-----------+------+-----------------------+
+2 rows in set (0.00 sec)
+
+mysql> exit
+Bye
+
+[root@docker ~]# docker search wordpress
+[root@docker ~]# docker pull wordpress
+[root@docker ~]# docker history docker.io/wordpress
+[root@docker ~]# mkdir /web
+[root@docker ~]# docker run -tid --name blog -v /web:/var/www/html -p 80:80 -e WORDPRESS_DB_HOST=172.17.0.2 -e WORDPRESS_DB_USER=root -e WORDPRESS_DB_PASSWORD=rootroot -e WORDPRESS_DB_NAME=wordpress docker.io/wordpress
+f64fbcc401d97536891613efa0b1af0b261bf9543bb2b33ce7b8e1257d0e7c53
+[root@docker ~]# docker ps
+CONTAINER ID        IMAGE                 COMMAND                  CREATED             STATUS              PORTS                 NAMES
+f64fbcc401d9        docker.io/wordpress   "docker-entrypoint..."   3 seconds ago       Up 2 seconds        0.0.0.0:80->80/tcp    blog
+848df2df75af        docker.io/centos      "/bin/bash"              15 minutes ago      Up 15 minutes                             centos01
+9edfe7cc62f3        docker.io/mysql       "docker-entrypoint..."   49 minutes ago      Up 44 minutes       3306/tcp, 33060/tcp   db
+
+创建出来之后输入容器宿主机的ip地址
+http://192.168.200.200/
+即可看到wordpress安装界面。安装完成后，可看到博客界面。后续进行安装即可。
+
+## 1.4 Link 链接
+
+该方法不常用，了解下即可。
+为了避免底层数据库ip地址发生变化而导致上层应用无法访问，可以使用link的方式指定一个别名。
+需要注意的是，link是单向的，一旦db的ip地址发生变化，上层应用地址是无法跟着变化的，需要重新创建，这也是link的不便之处。
+
+[root@docker ~]# docker run -tid --name db --restart always -v /db:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=rootroot -e MYSQL_DATABASE=wordpress mysql
+[root@docker ~]# 
+[root@docker ~]# docker run -tid --name blog -v /web:/var/www/html -p 80:80 --link db:dbhehe -e WORDPRESS_DB_HOST=dbhehe -e WORDPRESS_DB_USER=root -e WORDPRESS_DB_PASSWORD=rootroot -e WORDPRESS_DB_NAME=wordpress wordpress
+
+docker run -tid --name blog -v /web:/var/www/html -p 80:80 -e WORDPRESS_DB_HOST=db -e WORDPRESS_DB_USER=root -e WORDPRESS_DB_PASSWORD=rootroot -e WORDPRESS_DB_NAME=wordpress wordpress
+
+查看下db的hosts
+[root@docker ~]# docker exec -ti db /bin/sh
+~ # cat /etc/hosts
+127.0.0.1	localhost
+::1	localhost ip6-localhost ip6-loopback
+fe00::0	ip6-localnet
+ff00::0	ip6-mcastprefix
+ff02::1	ip6-allnodes
+ff02::2	ip6-allrouters
+172.17.0.2	e3298850f546
+~ # exit
+
+查看下blog的hosts
+[root@docker ~]# docker exec -ti blog /bin/sh
+~ # cat /etc/hosts
+127.0.0.1	localhost
+::1	localhost ip6-localhost ip6-loopback
+fe00::0	ip6-localnet
+ff00::0	ip6-mcastprefix
+ff02::1	ip6-allnodes
+ff02::2	ip6-allrouters
+172.17.0.2	dbhehe e3298850f546 db
+172.17.0.3	3c523b236263
+~ # exit
+
+可以看到blog的hosts里面主机名是 dbhehe，对应的ip地址就是 db 的ip地址。
+
+# 2 数据卷的管理
+## 2.1 默认卷管理机制
+以centos为例,docker的默认存储路径位于/var/lib/docker,其中container文件夹保存着容器的相关信息，image保存着镜像的相关信息，overlay2保存着容器虚拟文件系统的相关信息。overlay2中有diff目录和merged目录，diff中保存的就是差分信息，merged是在容器运行时才会出现的存储情况集合，我们可以直接对差分信息进行修改，也可以在merged中进行修改，修改后的结果也会出现在diff中，同时容器内部也会直观的看到我们的修改内容。
+容器里面的进程是在内存里面的，所以理论上不管是在容器里面创建文件还是拷贝文件，一旦容器关闭，文件即将丢失（内存释放）。
+但奇怪的是，容器重启之后你会发现，容器里的文件依然存在。在硬盘的某个位置（容器层面），一旦删除容器，底层对应的容器层面会被一起删除掉。那在哪个位置？
+
+比如：创建一个新的容器
+[root@docker ~]# docker run -tid --name web2 --restart always docker.io/nginx
+[root@docker ~]# docker exec -ti web2 /bin/bash
+
+另一终端查询文件：默认没有
+[root@docker ~]# find / -name memeda.txt
+
+容器中创建文件：
+root@c2cf5ca73b0a:/# touch memeda.txt
+root@c2cf5ca73b0a:/# ls
+root@c2cf5ca73b0a:/# echo aaa >> memeda.txt 
+root@c2cf5ca73b0a:/# cat memeda.txt 
+
+另一终端查询文件及内容：
+[root@docker ~]# find / -name memeda.txt
+/var/lib/docker/overlay2/589244242b84b0451fa345edb9b988223ca325f735a69d339a4c5b04779aa4ab/diff/memeda.txt
+[root@docker ~]# cat /var/lib/docker/overlay2/589244242b84b0451fa345edb9b988223ca325f735a69d339a4c5b04779aa4ab/diff/memeda.txt
+aaa
+
+终端如果直接将内容写入这个diff里面的文件呢？内部容器是否可以看到？
+[root@docker ~]# echo bbb >> /var/lib/docker/overlay2/589244242b84b0451fa345edb9b988223ca325f735a69d339a4c5b04779aa4ab/diff/memeda.txt
+
+[root@docker ~]# cat /var/lib/docker/overlay2/589244242b84b0451fa345edb9b988223ca325f735a69d339a4c5b04779aa4ab/diff/memeda.txt
+aaa
+bbb
+
+返回容器查看内容是否有变
+root@c2cf5ca73b0a:/# cat memeda.txt 
+aaa
+bbb
+
+最后退出容器，甚至停止容器，文件内容依然存在。
+root@c2cf5ca73b0a:/# exit                
+exit
+[root@docker ~]# docker stop web2
+web2
+
+[root@docker ~]# cat /var/lib/docker/overlay2/589244242b84b0451fa345edb9b988223ca325f735a69d339a4c5b04779aa4ab/diff/memeda.txt
+aaa
+bbb
+
+当删除容器，文件会被随之删除
+[root@docker ~]# docker ps --all
+[root@docker ~]# docker rm web2
+web2
+[root@docker ~]# find / -name memeda.txt
+
+删除容器就会删除容器的文件数据，太不靠谱了。有时候，容器出现一些问题，要重启要重新创建，但如果重新创建，数据就丢失了。而我希望数据可以长期保存，怎么办？
+
+## 2.2 手工更改绑定卷
+### 2.2.1 随机分配目录
+默认情况下，容器写入的数据，会被保存在容器层，随着容器删除而删除；这时候可以将容器文件和物理主机某个文件进行绑定映射，这样，删除容器，数据就会保留下来。
+创建映射卷，有两种方法：
+-v /data --仅指定容器目录，物理机会随机分配目录进行映射
+-v /host_data:/data --左边指定物理机目录，右边指定容器目录，进行映射
+
+[root@docker ~]# docker run -tid --name web3 --restart always -v /data docker.io/nginx
+fdfb3f2363932f3f4a78e2749b48095b680125e14fc5351277406b96dbd32c6b
+
+查看属性
+[root@docker ~]# docker inspect web3
+找到source这一段，Source就是物理机目录
+“/var/lib/docker/volumes/256cea8785a6f307db1374df529d7b09d9e9910d2309f33aaf5b3585f43e6207/_data”
+
+[root@docker ~]# docker exec -ti web3 /bin/bash
+root@fdfb3f236393:/# cd /data/
+root@fdfb3f236393:/data# echo abc >> abc.txt
+root@fdfb3f236393:/data# ls
+abc.txt
+
+容器里面创建文件，之后到物理机查看：
+[root@docker ~]# ls /var/lib/docker/volumes/256cea8785a6f307db1374df529d7b09d9e9910d2309f33aaf5b3585f43e6207/_data
+abc.txt
+
+物理机直接创建，之后到容器中查看：
+[root@docker ~]# echo bbb >> /var/lib/docker/volumes/256cea8785a6f307db1374df529d7b09d9e9910d2309f33aaf5b3585f43e6207/_data/bbb.txt
+
+root@fdfb3f236393:/data# ls
+abc.txt  bbb.txt
+
+把容器删除呢？物理机文件还存在吗？依然存在。
+
+root@fdfb3f236393:/data# exit
+exit
+[root@docker ~]# docker rm -f web3
+web3
+
+[root@docker ~]# ls /var/lib/docker/volumes/256cea8785a6f307db1374df529d7b09d9e9910d2309f33aaf5b3585f43e6207/_data
+abc.txt  bbb.txt
+
+思考：如果这时候再次创建这个容器，指定data目录，那么容器里面可以看到之前的内容吗？
+[root@docker ~]# docker run -tid --name web3 --restart always -v /data docker.io/nginx
+
+[root@docker ~]# docker exec -ti web3 /bin/bash
+root@e489940d9af0:/# cd /data/
+root@e489940d9af0:/data# ls
+
+没有任何内容。原因是因为，每次创建随机分配的目录根本就不是一个。
+[root@docker ~]# docker inspect web3
+
+### 2.2.2 手工指定目录
+[root@docker ~]# docker rm -f web3
+[root@docker ~]# docker run -tid --name web3 --restart always -v /host_data:/data docker.io/nginx
+[root@docker ~]# docker inspect web3
+
+查看source “/host_data”
+
+[root@docker ~]# docker exec -ti web3 bash
+root@818a96ee98c1:/# cd /data/
+root@818a96ee98c1:/data# ls
+root@818a96ee98c1:/data# touch aaa.txt
+
+[root@docker ~]# ls /host_data/
+aaa.txt
+[root@docker ~]# touch /host_data/bbb.txt
+
+root@818a96ee98c1:/data# ls
+aaa.txt  bbb.txt
+
+如果这时候再次删除，重新创建，容器目录里面的文件还在吗？
+
+[root@docker ~]# docker rm -f web3
+web3
+
+[root@docker ~]# docker run -tid --name web3 --restart always -v /host_data:/data docker.io/nginx
+8d36ce57c0fa8d3ea5613ecb25372e72c18e33c28c5e2e04b0ded531c0f69439
+[root@docker ~]# docker exec -ti web3 bash
+root@8d36ce57c0fa:/# cd /data/
+root@8d36ce57c0fa:/data# ls
+aaa.txt  bbb.txt
+
+另外，默认情况下指定的目录是以rw读写方式挂载的，缺省值。
+docker run -tid --name web3 --restart always -v /host_data:/data:rw docker.io/nginx
+
+你可以可以，以只读方式挂载。
+docker run -tid --name web3 --restart always -v /host_data:/data:ro docker.io/nginx
+
+[root@docker ~]# docker run -tid --name web3 --restart always -v /host_data:/data:ro docker.io/nginx
+dde51822cce8ba73ac92d10f75f4ec754c66fc9d73b97d3d9cf6fdfc94bcba4e
+[root@docker ~]# docker exec -ti web3 bash
+root@dde51822cce8:/# cd /data/
+root@dde51822cce8:/data# ls
+aaa.txt  bbb.txt
+root@dde51822cce8:/data# touch ccc.txt
+touch: cannot touch 'ccc.txt': Read-only file system
+
+但外面的文件目录是可以写的，这个只读权限仅仅是针对容器目录的。
+[root@docker ~]# touch /host_data/ddd.txt
+[root@docker ~]# ls /host_data/
+aaa.txt  bbb.txt  ddd.txt
+
+root@dde51822cce8:/data# ls
+aaa.txt  bbb.txt  ddd.txt
+
+### 2.2.3 目录的复用
+我们现在使用/host_data 目录来创建一个mysql
+[root@docker ~]# docker run -tid --name db3 --restart always -e MYSQL_ROOT_PASSWORD=redhat -v /host_data/:/var/lib/mysql docker.io/mysql
+
+[root@docker ~]# ls /host_data/
+
+进入数据库创建数据库和表，并观察主机目录
+
+[root@docker ~]# mysql -uroot -predhat -h 172.17.0.6
+MySQL [(none)]> create database abc;
+Query OK, 1 row affected (0.01 sec)
+
+MySQL [(none)]> use abc;
+Database changed
+MySQL [abc]> create table aaa(id int);
+Query OK, 0 rows affected (0.07 sec)
+
+MySQL [abc]> insert into aaa values(1);
+Query OK, 1 row affected (0.01 sec)
+
+MySQL [abc]> insert into aaa values(2);
+Query OK, 1 row affected (0.00 sec)
+
+MySQL [abc]> insert into aaa values(3);
+Query OK, 1 row affected (0.05 sec)
+
+MySQL [abc]> exit
+Bye
+[root@docker ~]# ls /host_data/
+
+可以看到目录里面也多了个abc文件夹，就是abc数据库的。
+那如果这时候把容器删除，重新创建，还是复用/host_data这个目录，数据库的状态会正常吗？来尝试下
+[root@docker ~]# docker rm -f db3
+[root@docker ~]# docker run -tid --name db3 --restart always -e MYSQL_ROOT_PASSWORD=redhat -v /host_data/:/var/lib/mysql docker.io/mysql
+b40311f5b8d3b27e96b9b6906a56333eae09b1fbf3617effe5412fb737f26cc2
+最后通过docker ps看到状态正常。
