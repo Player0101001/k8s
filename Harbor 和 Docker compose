@@ -1,0 +1,549 @@
+# 1 私有镜像仓库
+## 1.1 使用阿里云
+1.创建个人实例
+2.创建命名空间（一个账号最多3个命名空间）
+3.手工创建镜像仓库（可以获取登录、拉取、上传的命令）
+4.登录 docker login --username=clis****@126.com registry.cn-hangzhou.aliyuncs.com
+5.重命名镜像 
+[root@docker ~]# docker tag alpine:latest registry.cn-hangzhou.aliyuncs.com/test321/alpine:v1.0
+[root@docker ~]# docker images
+6.推送镜像
+[root@docker ~]# docker push registry.cn-hangzhou.aliyuncs.com/test321/alpine:v1.0
+The push refers to repository [registry.cn-hangzhou.aliyuncs.com/test321/alpine]
+8d3ac3489996: Pushed 
+v1.0: digest: sha256:e7d88de73db3d3fd9b2d63aa7f447a10fd0220b7cbf39803c803f2af9ba256b3 size: 528
+
+## 1.2 使用华为云
+没有命名空间，改成了组织，一个账号默认最多创建5个组织
+
+## 1.3 腾讯云（参考阿里云）
+1.创建个人实例
+2.创建命名空间
+3.手工创建镜像仓库（可以获取登录、拉取、上传的命令）
+4.登录 docker login --username=clis****@126.com registry.cn-hangzhou.aliyuncs.com
+5.重命名镜像 
+[root@docker ~]# docker tag alpine:latest registry.cn-hangzhou.aliyuncs.com/test321/alpine:v1.0
+[root@docker ~]# docker images
+6.推送镜像
+[root@docker ~]# docker push registry.cn-hangzhou.aliyuncs.com/test321/alpine:v1.0
+The push refers to repository [registry.cn-hangzhou.aliyuncs.com/test321/alpine]
+8d3ac3489996: Pushed 
+v1.0: digest: sha256:e7d88de73db3d3fd9b2d63aa7f447a10fd0220b7cbf39803c803f2af9ba256b3 size: 528
+
+## 1.4 使用Harbor构建企业级私有镜像仓库
+https://github.com/goharbor/harbor/releases
+
+新发放一台虚拟机，安装docker
+
+systemctl stop firewalld.service 
+systemctl disable firewalld.service 
+setenforce 0
+vim /etc/selinux/config  
+echo '192.168.100.177 docker' >> /etc/hosts
+
+tar -zxvf harbor-offline-installer-v2.6.2.tgz 
+cd harbor/      
+cp harbor.yml.tmpl harbor.yml
+vim harbor.yml
+
+主机改为192.168.100.130
+port  改为 5000
+admin 密码改为 redhat12345
+
+刚才把https那一段注释掉了，还需要在docker.service 添加一个参数。
+
+vim /usr/lib/systemd/system/docker.service
+在ExecStart最后添加 --insecure-registry=192.168.100.204:5000
+
+systemctl daemon-reload 
+systemctl restart docker
+
+[root@docker harbor]# ls
+common.sh  harbor.v2.7.1.tar.gz  harbor.yml  harbor.yml.tmpl  install.sh  LICENSE  prepare
+[root@docker harbor]# ./prepare 
+prepare base dir is set to /root/harbor
+Unable to find image 'goharbor/prepare:v2.7.1' locally
+v2.7.1: Pulling from goharbor/prepare
+e8f9c57a1510: Pull complete 
+d38031c5a89d: Pull complete 
+49449379f742: Pull complete 
+46341b7aa6f4: Pull complete 
+c79337be634a: Pull complete 
+ee29b7a24d5c: Pull complete 
+914a67ccfb6e: Pull complete 
+d206894dacc5: Pull complete 
+2d90b70a0c60: Pull complete 
+1f485bc975b6: Pull complete 
+Digest: sha256:412d21213b04dd3c9de5814445a32d374ff551cd68b5fb1209de243f9d007199
+Status: Downloaded newer image for goharbor/prepare:v2.7.1
+WARNING:root:WARNING: HTTP protocol is insecure. Harbor will deprecate http protocol in the future. Please make sure to upgrade to https
+Generated configuration file: /config/portal/nginx.conf
+Generated configuration file: /config/log/logrotate.conf
+Generated configuration file: /config/log/rsyslog_docker.conf
+Generated configuration file: /config/nginx/nginx.conf
+Generated configuration file: /config/core/env
+Generated configuration file: /config/core/app.conf
+Generated configuration file: /config/registry/config.yml
+Generated configuration file: /config/registryctl/env
+Generated configuration file: /config/registryctl/config.yml
+Generated configuration file: /config/db/env
+Generated configuration file: /config/jobservice/env
+Generated configuration file: /config/jobservice/config.yml
+Generated and saved secret to file: /data/secret/keys/secretkey
+Successfully called func: create_root_cert
+Generated configuration file: /compose_location/docker-compose.yml
+Clean up the input dir
+[root@docker harbor]# ls
+common  common.sh  docker-compose.yml  harbor.v2.7.1.tar.gz  harbor.yml  harbor.yml.tmpl  install.sh  LICENSE  prepare
+[root@docker harbor]# 
+[root@docker harbor]# docker images
+REPOSITORY         TAG        IMAGE ID       CREATED         SIZE
+goharbor/prepare   v2.7.1     d9e019294af2   4 weeks ago     164MB
+centos             8.4.2105   5d0da3dc9764   18 months ago   231MB
+centos             latest     5d0da3dc9764   18 months ago   231MB
+
+vim common.sh 
+修改119行 $(docker compose version)
+vim install.sh 
+修改26行 DOCKER_COMPOSE="docker compose"
+
+./install.sh
+
+安装输出日志
+[root@docker harbor]# ./install.sh 
+
+[Step 0]: checking if docker is installed ...
+
+Note: docker version: 23.0.1
+
+[Step 1]: checking docker-compose is installed ...
+
+Note: Docker Compose version v2.16.0
+
+[Step 2]: loading Harbor images ...
+9b681d7437ee: Loading layer [==================================================>]  5.758MB/5.758MB
+a83e69e7a5ba: Loading layer [==================================================>]  8.987MB/8.987MB
+4976a6e767f1: Loading layer [==================================================>]  14.47MB/14.47MB
+480d367aea76: Loading layer [==================================================>]  29.29MB/29.29MB
+dee8463c1f24: Loading layer [==================================================>]  22.02kB/22.02kB
+54570f91d11d: Loading layer [==================================================>]  14.47MB/14.47MB
+Loaded image: goharbor/notary-signer-photon:v2.7.1
+1f4c775bffe8: Loading layer [==================================================>]  5.758MB/5.758MB
+3284ab8d01eb: Loading layer [==================================================>]  8.987MB/8.987MB
+dd8fa1a2b2b0: Loading layer [==================================================>]  15.88MB/15.88MB
+8106ce046abf: Loading layer [==================================================>]  29.29MB/29.29MB
+1053b310e287: Loading layer [==================================================>]  22.02kB/22.02kB
+0aa0bd6cf9e6: Loading layer [==================================================>]  15.88MB/15.88MB
+Loaded image: goharbor/notary-server-photon:v2.7.1
+Loaded image: goharbor/prepare:v2.7.1
+7a5dc411df76: Loading layer [==================================================>]   91.1MB/91.1MB
+ceff2ad73365: Loading layer [==================================================>]  6.145MB/6.145MB
+2abd5823ecd7: Loading layer [==================================================>]  1.249MB/1.249MB
+e30926f66daa: Loading layer [==================================================>]  1.194MB/1.194MB
+Loaded image: goharbor/harbor-portal:v2.7.1
+3a104ad3dfa8: Loading layer [==================================================>]  123.4MB/123.4MB
+a582b782d956: Loading layer [==================================================>]  17.67MB/17.67MB
+747ad719967e: Loading layer [==================================================>]   5.12kB/5.12kB
+347857745db7: Loading layer [==================================================>]  6.144kB/6.144kB
+7ffc6a14a878: Loading layer [==================================================>]  3.072kB/3.072kB
+40e4f5237627: Loading layer [==================================================>]  2.048kB/2.048kB
+115d9d0765bb: Loading layer [==================================================>]   2.56kB/2.56kB
+b707c713f224: Loading layer [==================================================>]   2.56kB/2.56kB
+60dba025610e: Loading layer [==================================================>]   2.56kB/2.56kB
+4ccd0988c811: Loading layer [==================================================>]  9.728kB/9.728kB
+Loaded image: goharbor/harbor-db:v2.7.1
+cb897960d30f: Loading layer [==================================================>]  8.906MB/8.906MB
+fb6f4fd16c90: Loading layer [==================================================>]  3.584kB/3.584kB
+173d6ab78d38: Loading layer [==================================================>]   2.56kB/2.56kB
+c1fc6a63abb3: Loading layer [==================================================>]  103.2MB/103.2MB
+5f7e1bd6f6a5: Loading layer [==================================================>]    104MB/104MB
+Loaded image: goharbor/harbor-jobservice:v2.7.1
+856cff93e4d6: Loading layer [==================================================>]  8.906MB/8.906MB
+cf9e05a3f1f1: Loading layer [==================================================>]  25.65MB/25.65MB
+7bccc4373df9: Loading layer [==================================================>]  4.608kB/4.608kB
+b3ca201ee095: Loading layer [==================================================>]  26.44MB/26.44MB
+Loaded image: goharbor/harbor-exporter:v2.7.1
+9023a432c05c: Loading layer [==================================================>]   91.1MB/91.1MB
+Loaded image: goharbor/nginx-photon:v2.7.1
+4f730363c02d: Loading layer [==================================================>]  5.764MB/5.764MB
+23e70dd83173: Loading layer [==================================================>]  4.096kB/4.096kB
+a42372d3c73d: Loading layer [==================================================>]  3.072kB/3.072kB
+a76104dd55c5: Loading layer [==================================================>]  17.41MB/17.41MB
+77cd695198ba: Loading layer [==================================================>]   18.2MB/18.2MB
+Loaded image: goharbor/registry-photon:v2.7.1
+ad617d2bc63f: Loading layer [==================================================>]  6.291MB/6.291MB
+77e676fefcfc: Loading layer [==================================================>]  4.096kB/4.096kB
+2748a8bff421: Loading layer [==================================================>]  3.072kB/3.072kB
+e44fb65f4eba: Loading layer [==================================================>]  185.6MB/185.6MB
+97cc74bfda1f: Loading layer [==================================================>]  13.73MB/13.73MB
+928b80c07fce: Loading layer [==================================================>]  200.1MB/200.1MB
+Loaded image: goharbor/trivy-adapter-photon:v2.7.1
+09859c8fc317: Loading layer [==================================================>]  5.763MB/5.763MB
+a2262dec17c9: Loading layer [==================================================>]  91.75MB/91.75MB
+1cda8d191cea: Loading layer [==================================================>]  3.072kB/3.072kB
+6015205cdf66: Loading layer [==================================================>]  4.096kB/4.096kB
+7197ebd96a1d: Loading layer [==================================================>]  92.54MB/92.54MB
+Loaded image: goharbor/chartmuseum-photon:v2.7.1
+1f5497d46044: Loading layer [==================================================>]  8.906MB/8.906MB
+af93c68750db: Loading layer [==================================================>]  3.584kB/3.584kB
+c5cf9feadf24: Loading layer [==================================================>]   2.56kB/2.56kB
+26a09c87d905: Loading layer [==================================================>]  84.83MB/84.83MB
+1347fb69ddac: Loading layer [==================================================>]  5.632kB/5.632kB
+4b368dfd8acc: Loading layer [==================================================>]    108kB/108kB
+6a175467b77e: Loading layer [==================================================>]  44.03kB/44.03kB
+62281197b07e: Loading layer [==================================================>]  85.78MB/85.78MB
+cdcda83640cc: Loading layer [==================================================>]   2.56kB/2.56kB
+Loaded image: goharbor/harbor-core:v2.7.1
+0d6e31ae4572: Loading layer [==================================================>]     99MB/99MB
+64ae4b9c8bce: Loading layer [==================================================>]  3.584kB/3.584kB
+c6a1a03ae721: Loading layer [==================================================>]  3.072kB/3.072kB
+4b8ff43d0c5f: Loading layer [==================================================>]   2.56kB/2.56kB
+a4ce38a3c8a8: Loading layer [==================================================>]  3.072kB/3.072kB
+759b81f2ba78: Loading layer [==================================================>]  3.584kB/3.584kB
+fecfd1ab18de: Loading layer [==================================================>]  20.99kB/20.99kB
+Loaded image: goharbor/harbor-log:v2.7.1
+e04fe2da5f19: Loading layer [==================================================>]  5.764MB/5.764MB
+fc3ccce61cbe: Loading layer [==================================================>]  4.096kB/4.096kB
+e1befb3b20d0: Loading layer [==================================================>]  17.41MB/17.41MB
+381df6c03446: Loading layer [==================================================>]  3.072kB/3.072kB
+b819771c362f: Loading layer [==================================================>]  30.69MB/30.69MB
+c508d3c8aeac: Loading layer [==================================================>]  48.89MB/48.89MB
+Loaded image: goharbor/harbor-registryctl:v2.7.1
+c36fbbc4c25b: Loading layer [==================================================>]  91.93MB/91.93MB
+c77d114477fc: Loading layer [==================================================>]  3.072kB/3.072kB
+b5adfac82a36: Loading layer [==================================================>]   59.9kB/59.9kB
+1161cc44e0d4: Loading layer [==================================================>]  61.95kB/61.95kB
+Loaded image: goharbor/redis-photon:v2.7.1
+
+
+[Step 3]: preparing environment ...
+
+[Step 4]: preparing harbor configs ...
+prepare base dir is set to /root/harbor
+WARNING:root:WARNING: HTTP protocol is insecure. Harbor will deprecate http protocol in the future. Please make sure to upgrade to https
+Clearing the configuration file: /config/portal/nginx.conf
+Clearing the configuration file: /config/log/logrotate.conf
+Clearing the configuration file: /config/log/rsyslog_docker.conf
+Clearing the configuration file: /config/nginx/nginx.conf
+Clearing the configuration file: /config/core/env
+Clearing the configuration file: /config/core/app.conf
+Clearing the configuration file: /config/registry/passwd
+Clearing the configuration file: /config/registry/config.yml
+Clearing the configuration file: /config/registryctl/env
+Clearing the configuration file: /config/registryctl/config.yml
+Clearing the configuration file: /config/db/env
+Clearing the configuration file: /config/jobservice/env
+Clearing the configuration file: /config/jobservice/config.yml
+Generated configuration file: /config/portal/nginx.conf
+Generated configuration file: /config/log/logrotate.conf
+Generated configuration file: /config/log/rsyslog_docker.conf
+Generated configuration file: /config/nginx/nginx.conf
+Generated configuration file: /config/core/env
+Generated configuration file: /config/core/app.conf
+Generated configuration file: /config/registry/config.yml
+Generated configuration file: /config/registryctl/env
+Generated configuration file: /config/registryctl/config.yml
+Generated configuration file: /config/db/env
+Generated configuration file: /config/jobservice/env
+Generated configuration file: /config/jobservice/config.yml
+loaded secret from file: /data/secret/keys/secretkey
+Generated configuration file: /compose_location/docker-compose.yml
+Clean up the input dir
+
+
+Note: stopping existing Harbor instance ...
+
+
+[Step 5]: starting Harbor ...
+[+] Running 10/10
+ ⠿ Network harbor_harbor        Created                                                                                                     0.0s
+ ⠿ Container harbor-log         Started                                                                                                     1.1s
+ ⠿ Container harbor-portal      Started                                                                                                     2.8s
+ ⠿ Container registryctl        Started                                                                                                     2.7s
+ ⠿ Container redis              Started                                                                                                     2.3s
+ ⠿ Container registry           Started                                                                                                     2.5s
+ ⠿ Container harbor-db          Started                                                                                                     2.7s
+ ⠿ Container harbor-core        Started                                                                                                     3.7s
+ ⠿ Container nginx              Started                                                                                                     4.5s
+ ⠿ Container harbor-jobservice  Started                                                                                                     4.5s
+✔ ----Harbor has been installed and started successfully.----
+
+通过命令行登录
+[root@henry ~]# docker login 192.168.100.204:5000
+输入账号密码
+Authenticating with existing credentials...
+WARNING! Your password will be stored unencrypted in /root/.docker/config.json.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+
+Login Succeeded
+
+之后在浏览器中输入 192.168.100.177:5000 进行harbor访问，在harbor里面push语句获取
+
+[root@docker ~]# docker tag centos:666 192.168.100.204:5000/java/centos:ssh
+[root@docker ~]# docker images
+
+[root@docker ~]# docker push 192.168.100.204:5000/java/centos:ssh 
+The push refers to repository [192.168.100.204:5000/java/centos]
+4937d3a53471: Pushed 
+6b5344944821: Pushed 
+0ef1d80dbe7b: Pushed 
+99ce501cad07: Pushed 
+1705fbc1da60: Pushed 
+9bc2fc2036e8: Pushed 
+74ddd0ec08fa: Pushed 
+ssh: digest: sha256:6404ba9033adb0626fe2a6216ae4f2d8e3ab9b99c5d1d95fe4de53ae04f6ec7a size: 1778
+
+（可能版本问题 CentOS Stream 8 版本 v2.8.4）
+现在按照上面的步骤配置完成后，docker login 的时候，依然报https错误：
+[root@docker ~]# docker login 192.168.100.204:5000
+Username: admin	  
+Password: 
+Error response from daemon: Get "https://192.168.100.204:5000/v2/": http: server gave HTTP response to HTTPS client
+
+解决方案:在客户端添加参数
+[root@docker ~]# vim /etc/docker/daemon.json 
+[root@docker ~]# cat /etc/docker/daemon.json 
+{
+  "insecure-registries": ["192.168.100.204:5000"]
+}
+[root@docker ~]# systemctl daemon-reload
+[root@docker ~]# systemctl restart docker
+
+再次尝试连接
+[root@docker ~]# docker login 192.168.100.204:5000
+Username: admin
+Password: 
+WARNING! Your password will be stored unencrypted in /root/.docker/config.json.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+
+Login Succeeded
+
+# 2 容器资源限制
+## 2.1 内存限制
+[root@docker ~]# free -m
+              total        used        free      shared  buff/cache   available
+Mem:           7928         404        5113          17        2410        7259
+Swap:          8059           0        8059
+[root@docker ~]# docker sta
+stack  start  stats  
+[root@docker ~]# docker sta
+stack  start  stats  
+[root@docker ~]# docker stats --no-stream
+CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT     MEM %     NET I/O       BLOCK I/O   PIDS
+af59281a1547   os1       0.00%     1.559MiB / 7.743GiB   0.02%     1.09kB / 0B   0B / 0B     1
+[root@docker ~]# 
+[root@docker ~]# docker run -tid --name os2 --restart always -m 512m centos
+6baac995e044ea11ecf357e516b05eab13590ef70770fbf271f84e4cbf474150
+[root@docker ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND       CREATED         STATUS         PORTS     NAMES
+6baac995e044   centos    "/bin/bash"   3 seconds ago   Up 2 seconds             os2
+af59281a1547   centos    "/bin/bash"   5 minutes ago   Up 5 minutes             os1
+[root@docker ~]# docker stats --no-stream
+CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT     MEM %     NET I/O       BLOCK I/O   PIDS
+6baac995e044   os2       0.00%     1.551MiB / 512MiB     0.30%     586B / 0B     0B / 0B     1
+af59281a1547   os1       0.00%     1.559MiB / 7.743GiB   0.02%     1.16kB / 0B   0B / 0B     1
+
+[root@docker ~]# ls
+anaconda-ks.cfg  bridge-utils-1.5-9.el7.x86_64.rpm  harbor  harbor-offline-installer-v2.7.1.tgz  hehe.txt  memload-7.0-1.r29766.x86_64.rpm
+[root@docker ~]# docker cp memload-7.0-1.r29766.x86_64.rpm os2:/
+Successfully copied 8.704kB to os2:/
+[root@docker ~]# docker exec -ti os2 /bin/bash
+[root@6baac995e044 /]# ls
+bin  dev  etc  home  lib  lib64  lost+found  media  memload-7.0-1.r29766.x86_64.rpm  mnt  opt  proc  root  run	sbin  srv  sys	tmp  usr  var
+[root@6baac995e044 /]# rpm -ivh memload-7.0-1.r29766.x86_64.rpm 
+Verifying...                          ################################# [100%]
+Preparing...                          ################################# [100%]
+Updating / installing...
+   1:memload-7.0-1.r29766             ################################# [100%]
+[root@6baac995e044 /]# memload 200
+Attempting to allocate 200 Mebibytes of resident memory...
+^C
+[root@6baac995e044 /]# memload 600
+Attempting to allocate 600 Mebibytes of resident memory...
+^C
+
+[root@docker harbor]# docker stats --no-stream
+CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT     MEM %     NET I/O       BLOCK I/O        PIDS
+6baac995e044   os2       0.00%     3.039MiB / 512MiB     0.59%     866B / 0B     20.3MB / 477kB   2
+af59281a1547   os1       0.00%     1.559MiB / 7.743GiB   0.02%     1.16kB / 0B   0B / 0B          1
+[root@docker harbor]# docker stats --no-stream
+CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT     MEM %     NET I/O       BLOCK I/O        PIDS
+6baac995e044   os2       99.26%    204.4MiB / 512MiB     39.92%    866B / 0B     20.3MB / 477kB   3
+af59281a1547   os1       0.00%     1.559MiB / 7.743GiB   0.02%     1.16kB / 0B   0B / 0B          1
+[root@docker harbor]# docker stats --no-stream
+CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT     MEM %     NET I/O       BLOCK I/O        PIDS
+6baac995e044   os2       99.20%    511.8MiB / 512MiB     99.97%    866B / 0B     20.3MB / 477kB   3
+af59281a1547   os1       0.00%     1.559MiB / 7.743GiB   0.02%     1.23kB / 0B   0B / 0B          1
+
+## 2.2 cpu限制
+
+cpu主要是限制某个容器的进程必须在哪个cpu上去跑。避免频繁的上下文切换，提升性能
+
+在os2里面运行cat命令
+[root@6baac995e044 /]# cd
+[root@6baac995e044 ~]# 
+[root@6baac995e044 ~]# 
+[root@6baac995e044 ~]# 
+[root@6baac995e044 ~]# cat /dev/zero > /dev/null &
+[1] 32
+[root@6baac995e044 ~]# cat /dev/zero > /dev/null &
+[2] 33
+[root@6baac995e044 ~]# cat /dev/zero > /dev/null &
+[3] 34
+
+查看
+[root@docker harbor]# ps aux |grep cat
+root       10883 75.7  0.0  23184  1396 pts/1    R    20:24   0:12 /usr/bin/coreutils --coreutils-prog-shebang=cat /usr/bin/cat /dev/zero
+root       10884 73.5  0.0  23184  1396 pts/1    R    20:24   0:09 /usr/bin/coreutils --coreutils-prog-shebang=cat /usr/bin/cat /dev/zero
+root       10885 65.9  0.0  23184  1480 pts/1    R    20:25   0:07 /usr/bin/coreutils --coreutils-prog-shebang=cat /usr/bin/cat /dev/zero
+root       10887  0.0  0.0  12144  1092 pts/0    R+   20:25   0:00 grep --color=auto cat
+[root@docker harbor]# top
+top - 20:26:12 up  1:31,  2 users,  load average: 2.23, 0.80, 0.37
+Tasks: 171 total,   4 running, 167 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  1.5 us, 97.7 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.8 hi,  0.0 si,  0.0 st
+MiB Mem :   7928.5 total,   5075.8 free,    441.1 used,   2411.7 buff/cache
+MiB Swap:   8060.0 total,   8058.7 free,      1.2 used.   7222.8 avail Mem 
+
+[root@docker harbor]# lscpu
+Architecture:        x86_64
+CPU op-mode(s):      32-bit, 64-bit
+Byte Order:          Little Endian
+CPU(s):              2
+On-line CPU(s) list: 0,1
+Thread(s) per core:  1
+Core(s) per socket:  2
+Socket(s):           1
+NUMA node(s):        1
+
+[root@docker harbor]# ps mo pid,comm,psr $(pgrep cat)
+    PID COMMAND         PSR
+  10883 cat               -
+      - -                 1
+  10884 cat               -
+      - -                 0
+  10885 cat               -
+      - -                 1
+
+三个cat进程，分别运行在 0 和 1 号cpu上。如果想让某个容器里面所有的进程都运行在同一个cpu上，可以这么操作。
+[root@docker harbor]# docker run -tid --name os3 --restart always --cpuset-cpus 0 centos
+
+[root@docker harbor]# docker exec -ti os3 /bin/bash
+[root@e8c6914e2883 /]# cat /dev/zero > /dev/null &
+[1] 29
+[root@e8c6914e2883 /]# cat /dev/zero > /dev/null &
+[2] 30
+[root@e8c6914e2883 /]# cat /dev/zero > /dev/null &
+[3] 31
+[root@e8c6914e2883 /]# exit
+exit
+[root@docker harbor]# ps mo pid,comm,psr $(pgrep cat)
+    PID COMMAND         PSR
+  10883 cat               -
+      - -                 1
+  10884 cat               -
+      - -                 1
+  10885 cat               -
+      - -                 1
+  11216 cat               -
+      - -                 0
+  11217 cat               -
+      - -                 0
+  11218 cat               -
+      - -                 0
+
+发现新创建的容器进程，都运行在了0号cpu上。
+
+[root@docker harbor]# ps aux |grep cat
+root       10884 46.2  0.0  23184  1396 pts/1    R    20:24   8:08 /usr/bin/coreutils --coreutils-prog-shebang=cat /usr/bin/cat /dev/zero
+root       10885 46.3  0.0  23184  1480 pts/1    R    20:25   8:08 /usr/bin/coreutils --coreutils-prog-shebang=cat /usr/bin/cat /dev/zero
+root       11216 31.8  0.0  23184  1436 ?        R    20:31   3:30 /usr/bin/coreutils --coreutils-prog-shebang=cat /usr/bin/cat /dev/zero
+root       11217 31.7  0.0  23184  1436 ?        R    20:31   3:29 /usr/bin/coreutils --coreutils-prog-shebang=cat /usr/bin/cat /dev/zero
+root       11218 31.7  0.0  23184  1468 ?        R    20:31   3:28 /usr/bin/coreutils --coreutils-prog-shebang=cat /usr/bin/cat /dev/zero
+root       11249  0.0  0.0  12144  1180 pts/0    R+   20:42   0:00 grep --color=auto cat
+[root@docker harbor]# kill -9 10884
+[root@docker harbor]# kill -9 10885
+[root@docker harbor]# kill -9 11216
+[root@docker harbor]# kill -9 11217
+[root@docker harbor]# kill -9 11218
+
+kubernetes=k8s  k8s 集群
+
+Docker 公司 --> docker  swarm 集群
+Oracle 公司 --> oracle
+
+
+# 3 Compose编排
+## 3.1 安装docker compose
+如果你是Linux 7 ，可能会非常麻烦。
+要安装docker-compose-plugin
+
+## 3.2 了解yaml文件格式
+呀某  耶某
+
+yml是yaml 语言的文件。
+xml文件
+<html>
+<head></head>
+<body></body>
+</html>
+
+RHCE 8 下午场 考 ansible
+
+yaml文件格式要求：
+1.yaml是以空格缩进来控制层级关系，不能使用Tab键，而且大小写敏感的；（参数遵循驼峰写法）imagePullPolicy
+2.yaml缩进的空格数量不重要的，重要的是相同层级要左对齐。
+
+## 3.3 实验：docker compose 搭建博客
+docker run -tid --name db --restart always -v /db:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=rootroot -e MYSQL_DATABASE=wordpress mysql
+
+docker run -tid --name blog -v /web:/var/www/html -p 80:80 --link db:dbhehe -e WORDPRESS_DB_HOST=dbhehe -e WORDPRESS_DB_USER=root -e WORDPRESS_DB_PASSWORD=rootroot -e WORDPRESS_DB_NAME=wordpress wordpress
+
+通过docker compose来统一管理这两个容器呢？
+
+
+[root@docker abc]# cat docker-compose.yaml
+services:
+  blog:
+      image: wordpress:latest
+      restart: always
+      links:
+            - db:memeda
+      ports:
+            - "80:80"
+      environment:
+            - WORDPRESS_DB_HOST=memeda
+            - WORDPRESS_DB_USER=root
+            - WORDPRESS_DB_PASSWORD=redhat
+            - WORDPRESS_DB_NAME=wordpress
+
+  db:
+      image: mysql:latest
+      restart: always
+      environment:
+            - MYSQL_ROOT_PASSWORD=redhat
+            - MYSQL_DATABASE=wordpress
+
+CKA/CKAD/CKS
+
+[root@docker abc]# docker compose up  --前端运行
+[root@docker abc]# docker compose up -d --后端运行
+[+] Running 2/2
+
+[root@docker abc]# docker ps
+CONTAINER ID   IMAGE              COMMAND                  CREATED         STATUS         PORTS                               NAMES
+53de217170c8   wordpress:latest   "docker-entrypoint.s…"   9 seconds ago   Up 7 seconds   0.0.0.0:80->80/tcp, :::80->80/tcp   abc-blog-1
+cc37967eb993   mysql:latest       "docker-entrypoint.s…"   9 seconds ago   Up 8 seconds   3306/tcp, 33060/tcp                 abc-db-1
+
+## 3.4 docker compose 命令总结
+[root@docker abc]# docker compose stop
+[root@docker abc]# docker compose start
+[root@docker abc]# docker compose rm
+
+准备3台linux
+1.通过模板完整克隆3台linux(完成克隆)
+2.修改3台linux 主机名
+3.修改3台linux ip地址（手工配置静态ip）
+
+3台
